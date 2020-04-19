@@ -15,8 +15,8 @@
 /* eslint no-var: error */
 
 import {
-  assert, CMapCompressionType, isString, removeNullCharacters, stringToBytes,
-  unreachable, URL, Util, warn
+  assert, BaseException, CMapCompressionType, isString, removeNullCharacters,
+  stringToBytes, unreachable, Util, warn
 } from '../shared/util';
 
 const DEFAULT_LINK_REL = 'noopener noreferrer nofollow';
@@ -307,18 +307,12 @@ class PageViewport {
   }
 }
 
-const RenderingCancelledException = (function RenderingCancelledException() {
-  function RenderingCancelledException(msg, type) {
-    this.message = msg;
+class RenderingCancelledException extends BaseException {
+  constructor(msg, type) {
+    super(msg);
     this.type = type;
   }
-
-  RenderingCancelledException.prototype = new Error();
-  RenderingCancelledException.prototype.name = 'RenderingCancelledException';
-  RenderingCancelledException.constructor = RenderingCancelledException;
-
-  return RenderingCancelledException;
-})();
+}
 
 const LinkTarget = {
   NONE: 0, // Default value.
@@ -344,6 +338,8 @@ const LinkTargetStringMap = [
  *   The default value is `LinkTarget.NONE`.
  * @property {string} rel - (optional) The link relationship.
  *   The default value is `DEFAULT_LINK_REL`.
+ * @property {boolean} enabled - (optional) Whether the link should be enabled.
+ *   The default value is true.
  */
 
 /**
@@ -351,17 +347,27 @@ const LinkTargetStringMap = [
  * @param {HTMLLinkElement} link - The link element.
  * @param {ExternalLinkParameters} params
  */
-function addLinkAttributes(link, { url, target, rel, } = {}) {
-  link.href = link.title = (url ? removeNullCharacters(url) : '');
+function addLinkAttributes(link, { url, target, rel, enabled = true, } = {}) {
+  assert(url && typeof url === 'string',
+         'addLinkAttributes: A valid "url" parameter must provided.');
 
-  if (url) {
-    const LinkTargetValues = Object.values(LinkTarget);
-    const targetIndex =
-      LinkTargetValues.includes(target) ? target : LinkTarget.NONE;
-    link.target = LinkTargetStringMap[targetIndex];
-
-    link.rel = (typeof rel === 'string' ? rel : DEFAULT_LINK_REL);
+  const urlNullRemoved = removeNullCharacters(url);
+  if (enabled) {
+    link.href = link.title = urlNullRemoved;
+  } else {
+    link.href = '';
+    link.title = `Disabled: ${urlNullRemoved}`;
+    link.onclick = () => {
+      return false;
+    };
   }
+
+  const LinkTargetValues = Object.values(LinkTarget);
+  const targetIndex =
+    LinkTargetValues.includes(target) ? target : LinkTarget.NONE;
+  link.target = LinkTargetStringMap[targetIndex];
+
+  link.rel = (typeof rel === 'string' ? rel : DEFAULT_LINK_REL);
 }
 
 // Gets the file name from a given URL.

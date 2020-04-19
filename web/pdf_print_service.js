@@ -16,7 +16,6 @@
 import { CSS_UNITS, NullL10n } from './ui_utils';
 import { PDFPrintServiceFactory, PDFViewerApplication } from './app';
 import { AppOptions } from './app_options';
-import { URL } from 'pdfjs-lib';
 
 let activeService = null;
 let overlayManager = null;
@@ -74,7 +73,7 @@ PDFPrintService.prototype = {
   layout() {
     this.throwIfInactive();
 
-    let body = document.querySelector('body');
+    const body = document.querySelector('body');
     body.setAttribute('data-pdfjsprinting', true);
 
     let hasEqualPageSizes = this.pagesOverview.every(function(size) {
@@ -114,6 +113,10 @@ PDFPrintService.prototype = {
       return;
     }
     this.printContainer.textContent = '';
+
+    const body = document.querySelector('body');
+    body.removeAttribute('data-pdfjsprinting');
+
     if (this.pageStyleSheet) {
       this.pageStyleSheet.remove();
       this.pageStyleSheet = null;
@@ -289,7 +292,6 @@ window.addEventListener('keydown', function(event) {
     } else {
       event.stopPropagation();
     }
-    return;
   }
 }, true);
 if (hasAttachEvent) {
