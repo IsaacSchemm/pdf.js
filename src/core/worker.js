@@ -14,10 +14,10 @@
  */
 
 import {
-  arrayByteLength, arraysToBytes, createPromiseCapability, getVerbosityLevel,
-  info, InvalidPDFException, MissingPDFException, PasswordException,
-  setVerbosityLevel, UnexpectedResponseException, UnknownErrorException,
-  UNSUPPORTED_FEATURES, VerbosityLevel, warn
+  AbortException, arrayByteLength, arraysToBytes, createPromiseCapability,
+  getVerbosityLevel, info, InvalidPDFException, MissingPDFException,
+  PasswordException, setVerbosityLevel, UnexpectedResponseException,
+  UnknownErrorException, UNSUPPORTED_FEATURES, VerbosityLevel, warn
 } from '../shared/util';
 import { clearPrimitiveCaches, Ref } from './primitives';
 import { LocalPdfManager, NetworkPdfManager } from './pdf_manager';
@@ -67,29 +67,14 @@ var WorkerMessageHandler = {
 
       // check if Uint8Array can be sent to worker
       if (!(data instanceof Uint8Array)) {
-        handler.send('test', false);
+        handler.send('test', null);
         return;
       }
       // making sure postMessage transfers are working
-      var supportTransfers = data[0] === 255;
+      const supportTransfers = data[0] === 255;
       handler.postMessageTransfers = supportTransfers;
-      // check if the response property is supported by xhr
-      var xhr = new XMLHttpRequest();
-      var responseExists = 'response' in xhr;
-      // check if the property is actually implemented
-      try {
-        xhr.responseType; // eslint-disable-line no-unused-expressions
-      } catch (e) {
-        responseExists = false;
-      }
-      if (!responseExists) {
-        handler.send('test', false);
-        return;
-      }
-      handler.send('test', {
-        supportTypedArray: true,
-        supportTransfers,
-      });
+
+      handler.send('test', { supportTransfers, });
     });
 
     handler.on('configure', function wphConfigure(data) {
@@ -109,13 +94,11 @@ var WorkerMessageHandler = {
     var WorkerTasks = [];
     const verbosity = getVerbosityLevel();
 
-    let apiVersion = docParams.apiVersion;
-    let workerVersion =
-      typeof PDFJSDev !== 'undefined' ? PDFJSDev.eval('BUNDLE_VERSION') : null;
-    if ((typeof PDFJSDev !== 'undefined' && PDFJSDev.test('TESTING')) &&
-        apiVersion === null) {
-      warn('Ignoring apiVersion/workerVersion check in TESTING builds.');
-    } else if (apiVersion !== workerVersion) {
+    const apiVersion = docParams.apiVersion;
+    const workerVersion =
+      typeof PDFJSDev !== 'undefined' && !PDFJSDev.test('TESTING') ?
+      PDFJSDev.eval('BUNDLE_VERSION') : null;
+    if (apiVersion !== workerVersion) {
       throw new Error(`The API version "${apiVersion}" does not match ` +
                       `the Worker version "${workerVersion}".`);
     }
@@ -274,8 +257,8 @@ var WorkerMessageHandler = {
         cancelXHRs = null;
       });
 
-      cancelXHRs = function () {
-        pdfStream.cancelAllRequests('abort');
+      cancelXHRs = function(reason) {
+        pdfStream.cancelAllRequests(reason);
       };
 
       return pdfManagerCapability.promise;
@@ -349,7 +332,7 @@ var WorkerMessageHandler = {
         if (terminated) {
           // We were in a process of setting up the manager, but it got
           // terminated in the middle.
-          newPdfManager.terminate();
+          newPdfManager.terminate(new AbortException('Worker was terminated.'));
           throw new Error('Worker was terminated');
         }
         pdfManager = newPdfManager;
@@ -466,10 +449,10 @@ var WorkerMessageHandler = {
       });
     });
 
-    handler.on('RenderPageRequest', function wphSetupRenderPage(data) {
+    handler.on('GetOperatorList', function wphSetupRenderPage(data, sink) {
       var pageIndex = data.pageIndex;
       pdfManager.getPage(pageIndex).then(function(page) {
-        var task = new WorkerTask('RenderPageRequest: page ' + pageIndex);
+        var task = new WorkerTask(`GetOperatorList: page ${pageIndex}`);
         startWorkerTask(task);
 
         // NOTE: Keep this condition in sync with the `info` helper function.
@@ -478,55 +461,32 @@ var WorkerMessageHandler = {
         // Pre compile the pdf page and fetch the fonts/images.
         page.getOperatorList({
           handler,
+          sink,
           task,
           intent: data.intent,
           renderInteractiveForms: data.renderInteractiveForms,
-        }).then(function(operatorList) {
+        }).then(function(operatorListInfo) {
           finishWorkerTask(task);
 
           if (start) {
             info(`page=${pageIndex + 1} - getOperatorList: time=` +
-                 `${Date.now() - start}ms, len=${operatorList.totalLength}`);
+                 `${Date.now() - start}ms, len=${operatorListInfo.length}`);
           }
-        }, function(e) {
+          sink.close();
+        }, function(reason) {
           finishWorkerTask(task);
           if (task.terminated) {
             return; // ignoring errors from the terminated thread
           }
-
           // For compatibility with older behavior, generating unknown
           // unsupported feature notification on errors.
           handler.send('UnsupportedFeature',
                        { featureId: UNSUPPORTED_FEATURES.unknown, });
 
-          var minimumStackMessage =
-            'worker.js: while trying to getPage() and getOperatorList()';
+          sink.error(reason);
 
-          var wrappedException;
-
-          // Turn the error into an obj that can be serialized
-          if (typeof e === 'string') {
-            wrappedException = {
-              message: e,
-              stack: minimumStackMessage,
-            };
-          } else if (typeof e === 'object') {
-            wrappedException = {
-              message: e.message || e.toString(),
-              stack: e.stack || minimumStackMessage,
-            };
-          } else {
-            wrappedException = {
-              message: 'Unknown exception type: ' + (typeof e),
-              stack: minimumStackMessage,
-            };
-          }
-
-          handler.send('PageError', {
-            pageIndex,
-            error: wrappedException,
-            intent: data.intent,
-          });
+          // TODO: Should `reason` be re-thrown here (currently that casues
+          //       "Uncaught exception: ..." messages in the console)?
         });
       });
     }, this);
@@ -563,7 +523,9 @@ var WorkerMessageHandler = {
             return; // ignoring errors from the terminated thread
           }
           sink.error(reason);
-          throw reason;
+
+          // TODO: Should `reason` be re-thrown here (currently that casues
+          //       "Uncaught exception: ..." messages in the console)?
         });
       });
     });
@@ -579,11 +541,11 @@ var WorkerMessageHandler = {
     handler.on('Terminate', function wphTerminate(data) {
       terminated = true;
       if (pdfManager) {
-        pdfManager.terminate();
+        pdfManager.terminate(new AbortException('Worker was terminated.'));
         pdfManager = null;
       }
       if (cancelXHRs) {
-        cancelXHRs();
+        cancelXHRs(new AbortException('Worker was terminated.'));
       }
       clearPrimitiveCaches();
 

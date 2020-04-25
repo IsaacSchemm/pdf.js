@@ -14,44 +14,22 @@
  */
 /* eslint-disable no-multi-spaces */
 
-import { assert, warn } from '../shared/util';
+import { assert, BaseException, warn } from '../shared/util';
 
-let JpegError = (function JpegErrorClosure() {
-  function JpegError(msg) {
-    this.message = 'JPEG error: ' + msg;
+class JpegError extends BaseException {
+  constructor(msg) {
+    super(`JPEG error: ${msg}`);
   }
+}
 
-  JpegError.prototype = new Error();
-  JpegError.prototype.name = 'JpegError';
-  JpegError.constructor = JpegError;
-
-  return JpegError;
-})();
-
-let DNLMarkerError = (function DNLMarkerErrorClosure() {
-  function DNLMarkerError(message, scanLines) {
-    this.message = message;
+class DNLMarkerError extends BaseException {
+  constructor(message, scanLines) {
+    super(message);
     this.scanLines = scanLines;
   }
+}
 
-  DNLMarkerError.prototype = new Error();
-  DNLMarkerError.prototype.name = 'DNLMarkerError';
-  DNLMarkerError.constructor = DNLMarkerError;
-
-  return DNLMarkerError;
-})();
-
-let EOIMarkerError = (function EOIMarkerErrorClosure() {
-  function EOIMarkerError(message) {
-    this.message = message;
-  }
-
-  EOIMarkerError.prototype = new Error();
-  EOIMarkerError.prototype.name = 'EOIMarkerError';
-  EOIMarkerError.constructor = EOIMarkerError;
-
-  return EOIMarkerError;
-})();
+class EOIMarkerError extends BaseException { }
 
 /**
  * This code was forked from https://github.com/notmasteryet/jpgjs.
@@ -403,16 +381,19 @@ var JpegImage = (function JpegImageClosure() {
       // find marker
       bitsCount = 0;
       fileMarker = findNextFileMarker(data, offset);
-      // Some bad images seem to pad Scan blocks with e.g. zero bytes, skip past
-      // those to attempt to find a valid marker (fixes issue4090.pdf).
-      if (fileMarker && fileMarker.invalid) {
+      if (!fileMarker) {
+        // Reached the end of the image data without finding an EOI marker.
+        break;
+      } else if (fileMarker.invalid) {
+        // Some bad images seem to pad Scan blocks with e.g. zero bytes, skip
+        // past those to attempt to find a valid marker (fixes issue4090.pdf).
         warn('decodeScan - unexpected MCU data, current marker is: ' +
              fileMarker.invalid);
         offset = fileMarker.offset;
       }
       var marker = fileMarker && fileMarker.marker;
       if (!marker || marker <= 0xFF00) {
-        throw new JpegError('marker was not found');
+        throw new JpegError('decodeScan - a valid marker was not found.');
       }
 
       if (marker >= 0xFFD0 && marker <= 0xFFD7) { // RSTx
@@ -943,7 +924,13 @@ var JpegImage = (function JpegImageClosure() {
               offset = nextFileMarker.offset;
               break;
             }
-            throw new JpegError('unknown marker ' + fileMarker.toString(16));
+            if (offset > (data.length - 2)) {
+              warn('JpegImage.parse - reached the end of the image data ' +
+                   'without finding an EOI marker (0xFFD9).');
+              break markerLoop;
+            }
+            throw new JpegError('JpegImage.parse - unknown marker: ' +
+                                fileMarker.toString(16));
         }
         fileMarker = readUint16();
       }
