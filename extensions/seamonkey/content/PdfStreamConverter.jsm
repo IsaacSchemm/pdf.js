@@ -944,15 +944,12 @@ PdfStreamConverter.prototype = {
 
     aRequest.QueryInterface(Ci.nsIChannel);
 
-    aRequest.QueryInterface(Ci.nsIWritablePropertyBag);
-
     var contentDispositionFilename;
     try {
       contentDispositionFilename = aRequest.contentDispositionFilename;
     } catch (e) {}
 
     // Change the content type so we don't get stuck in a loop.
-    aRequest.setProperty("contentType", aRequest.contentType);
     aRequest.contentType = "text/html";
     if (isHttpRequest) {
       // We trust PDF viewer, using no CSP
