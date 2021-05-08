@@ -582,12 +582,16 @@ gulp.task('default_preferences', gulp.series('default_preferences-pre',
 
 gulp.task('locale', function () {
   var VIEWER_LOCALE_OUTPUT = 'web/locale/';
+  var METADATA_OUTPUT = 'extensions/firefox/';
+  var EXTENSION_LOCALE_OUTPUT = 'extensions/firefox/locale/';
   var SEAMONKEY_METADATA_OUTPUT = 'extensions/seamonkey/';
   var SEAMONKEY_EXTENSION_LOCALE_OUTPUT = 'extensions/seamonkey/locale/';
 
   console.log();
   console.log('### Building localization files');
 
+  rimraf.sync(EXTENSION_LOCALE_OUTPUT);
+  mkdirp.sync(EXTENSION_LOCALE_OUTPUT);
   rimraf.sync(SEAMONKEY_EXTENSION_LOCALE_OUTPUT);
   mkdirp.sync(SEAMONKEY_EXTENSION_LOCALE_OUTPUT);
   rimraf.sync(VIEWER_LOCALE_OUTPUT);
@@ -595,6 +599,8 @@ gulp.task('locale', function () {
 
   var subfolders = fs.readdirSync(L10N_DIR);
   subfolders.sort();
+  var metadataContent = '';
+  var chromeManifestContent = '';
   var viewerOutput = '';
   var locales = [];
   for (var i = 0; i < subfolders.length; i++) {
@@ -608,18 +614,35 @@ gulp.task('locale', function () {
       continue;
     }
 
+    mkdirp.sync(EXTENSION_LOCALE_OUTPUT + '/' + locale);
     mkdirp.sync(SEAMONKEY_EXTENSION_LOCALE_OUTPUT + '/' + locale);
     mkdirp.sync(VIEWER_LOCALE_OUTPUT + '/' + locale);
 
     locales.push(locale);
 
+    chromeManifestContent += 'locale  pdf.js  ' + locale + '  locale/' +
+                             locale + '/\n';
+
     if (checkFile(path + '/viewer.properties')) {
       viewerOutput += '[' + locale + ']\n' +
                       '@import url(' + locale + '/viewer.properties)\n\n';
     }
+
+    if (checkFile(path + '/metadata.inc')) {
+      var metadata = fs.readFileSync(path + '/metadata.inc').toString();
+      metadataContent += metadata;
+    }
   }
 
   return merge([
+    createStringSource('metadata.inc', metadataContent)
+      .pipe(gulp.dest(METADATA_OUTPUT)),
+    createStringSource('chrome.manifest.inc', chromeManifestContent)
+      .pipe(gulp.dest(METADATA_OUTPUT)),
+    gulp.src(L10N_DIR + '/{' + locales.join(',') + '}' +
+             '/{viewer,chrome}.properties', { base: L10N_DIR, })
+      .pipe(gulp.dest(EXTENSION_LOCALE_OUTPUT)),
+
     createStringSource('metadata.inc', metadataContent)
       .pipe(gulp.dest(SEAMONKEY_METADATA_OUTPUT)),
     createStringSource('chrome.manifest.inc', chromeManifestContent)
@@ -1017,7 +1040,7 @@ gulp.task('mozcentral-pre', gulp.series('buildnumber', 'default_preferences',
         ]))
         .pipe(gulp.dest(MOZCENTRAL_CONTENT_DIR + 'web')),
 
-    gulp.src('web/locale/en-US/*.properties')
+    gulp.src(FIREFOX_EXTENSION_DIR + 'locale/en-US/*.properties')
         .pipe(gulp.dest(MOZCENTRAL_L10N_DIR)),
     gulp.src(FIREFOX_EXTENSION_DIR + 'README.mozilla')
         .pipe(replace(/\bPDFJSSCRIPT_VERSION\b/g, version))
