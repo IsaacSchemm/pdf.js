@@ -14,11 +14,16 @@
  */
 
 import {
-  animationStarted, DEFAULT_SCALE, DEFAULT_SCALE_VALUE, MAX_SCALE,
-  MIN_SCALE, noContextMenuHandler, NullL10n
-} from './ui_utils';
+  animationStarted,
+  DEFAULT_SCALE,
+  DEFAULT_SCALE_VALUE,
+  MAX_SCALE,
+  MIN_SCALE,
+  noContextMenuHandler,
+  NullL10n,
+} from "./ui_utils";
 
-const PAGE_NUMBER_LOADING_INDICATOR = 'visiblePageIsLoading';
+const PAGE_NUMBER_LOADING_INDICATOR = "visiblePageIsLoading";
 const SCALE_SELECT_CONTAINER_PADDING = 8;
 const SCALE_SELECT_PADDING = 22;
 
@@ -57,16 +62,18 @@ class Toolbar {
     this.eventBus = eventBus;
     this.l10n = l10n;
     this.buttons = [
-      { element: options.previous, eventName: 'previouspage', },
-      { element: options.next, eventName: 'nextpage', },
-      { element: options.zoomIn, eventName: 'zoomin', },
-      { element: options.zoomOut, eventName: 'zoomout', },
-      { element: options.openFile, eventName: 'openfile', },
-      { element: options.print, eventName: 'print', },
-      { element: options.presentationModeButton,
-        eventName: 'presentationmode', },
-      { element: options.download, eventName: 'download', },
-      { element: options.viewBookmark, eventName: null, },
+      { element: options.previous, eventName: "previouspage" },
+      { element: options.next, eventName: "nextpage" },
+      { element: options.zoomIn, eventName: "zoomin" },
+      { element: options.zoomOut, eventName: "zoomout" },
+      { element: options.openFile, eventName: "openfile" },
+      { element: options.print, eventName: "print" },
+      {
+        element: options.presentationModeButton,
+        eventName: "presentationmode",
+      },
+      { element: options.download, eventName: "download" },
+      { element: options.viewBookmark, eventName: null },
     ];
     this.items = {
       numPages: options.numPages,
@@ -117,33 +124,33 @@ class Toolbar {
   }
 
   _bindListeners() {
-    const { pageNumber, scaleSelect, } = this.items;
+    const { pageNumber, scaleSelect } = this.items;
     const self = this;
 
     // The buttons within the toolbar.
-    for (const { element, eventName, } of this.buttons) {
-      element.addEventListener('click', (evt) => {
+    for (const { element, eventName } of this.buttons) {
+      element.addEventListener("click", evt => {
         if (eventName !== null) {
-          this.eventBus.dispatch(eventName, { source: this, });
+          this.eventBus.dispatch(eventName, { source: this });
         }
       });
     }
     // The non-button elements within the toolbar.
-    pageNumber.addEventListener('click', function() {
+    pageNumber.addEventListener("click", function() {
       this.select();
     });
-    pageNumber.addEventListener('change', function() {
-      self.eventBus.dispatch('pagenumberchanged', {
+    pageNumber.addEventListener("change", function() {
+      self.eventBus.dispatch("pagenumberchanged", {
         source: self,
         value: this.value,
       });
     });
 
-    scaleSelect.addEventListener('change', function() {
-      if (this.value === 'custom') {
+    scaleSelect.addEventListener("change", function() {
+      if (this.value === "custom") {
         return;
       }
-      self.eventBus.dispatch('scalechanged', {
+      self.eventBus.dispatch("scalechanged", {
         source: self,
         value: this.value,
       });
@@ -151,7 +158,7 @@ class Toolbar {
     // Suppress context menus for some controls.
     scaleSelect.oncontextmenu = noContextMenuHandler;
 
-    this.eventBus.on('localized', () => {
+    this.eventBus.on("localized", () => {
       this._wasLocalized = true;
       this._adjustScaleWidth();
       this._updateUIState(true);
@@ -163,85 +170,94 @@ class Toolbar {
       // Don't update the UI state until we localize the toolbar.
       return;
     }
-    const { pageNumber, pagesCount, pageScaleValue, pageScale, items, } = this;
+    const { pageNumber, pagesCount, pageScaleValue, pageScale, items } = this;
 
     if (resetNumPages) {
       if (this.hasPageLabels) {
-        items.pageNumber.type = 'text';
+        items.pageNumber.type = "text";
       } else {
-        items.pageNumber.type = 'number';
-        this.l10n.get('of_pages', { pagesCount, }, 'of {{pagesCount}}').
-            then((msg) => {
-          items.numPages.textContent = msg;
-        });
+        items.pageNumber.type = "number";
+        this.l10n
+          .get("of_pages", { pagesCount }, "of {{pagesCount}}")
+          .then(msg => {
+            items.numPages.textContent = msg;
+          });
       }
       items.pageNumber.max = pagesCount;
     }
 
     if (this.hasPageLabels) {
       items.pageNumber.value = this.pageLabel;
-      this.l10n.get('page_of_pages', { pageNumber, pagesCount, },
-                    '({{pageNumber}} of {{pagesCount}})').then((msg) => {
-        items.numPages.textContent = msg;
-      });
+      this.l10n
+        .get(
+          "page_of_pages",
+          { pageNumber, pagesCount },
+          "({{pageNumber}} of {{pagesCount}})"
+        )
+        .then(msg => {
+          items.numPages.textContent = msg;
+        });
     } else {
       items.pageNumber.value = pageNumber;
     }
 
-    items.previous.disabled = (pageNumber <= 1);
-    items.next.disabled = (pageNumber >= pagesCount);
+    items.previous.disabled = pageNumber <= 1;
+    items.next.disabled = pageNumber >= pagesCount;
 
-    items.zoomOut.disabled = (pageScale <= MIN_SCALE);
-    items.zoomIn.disabled = (pageScale >= MAX_SCALE);
+    items.zoomOut.disabled = pageScale <= MIN_SCALE;
+    items.zoomIn.disabled = pageScale >= MAX_SCALE;
 
-    let customScale = Math.round(pageScale * 10000) / 100;
-    this.l10n.get('page_scale_percent', { scale: customScale, },
-                  '{{scale}}%').then((msg) => {
-      let predefinedValueFound = false;
-      for (const option of items.scaleSelect.options) {
-        if (option.value !== pageScaleValue) {
-          option.selected = false;
-          continue;
+    const customScale = Math.round(pageScale * 10000) / 100;
+    this.l10n
+      .get("page_scale_percent", { scale: customScale }, "{{scale}}%")
+      .then(msg => {
+        let predefinedValueFound = false;
+        for (const option of items.scaleSelect.options) {
+          if (option.value !== pageScaleValue) {
+            option.selected = false;
+            continue;
+          }
+          option.selected = true;
+          predefinedValueFound = true;
         }
-        option.selected = true;
-        predefinedValueFound = true;
-      }
-      if (!predefinedValueFound) {
-        items.customScaleOption.textContent = msg;
-        items.customScaleOption.selected = true;
-      }
-    });
+        if (!predefinedValueFound) {
+          items.customScaleOption.textContent = msg;
+          items.customScaleOption.selected = true;
+        }
+      });
   }
 
   updateLoadingIndicatorState(loading = false) {
-    let pageNumberInput = this.items.pageNumber;
+    const pageNumberInput = this.items.pageNumber;
 
     pageNumberInput.classList.toggle(PAGE_NUMBER_LOADING_INDICATOR, loading);
   }
 
   _adjustScaleWidth() {
-    let container = this.items.scaleSelectContainer;
-    let select = this.items.scaleSelect;
+    const container = this.items.scaleSelectContainer;
+    const select = this.items.scaleSelect;
 
     animationStarted.then(function() {
       // Adjust the width of the zoom box to fit the content.
       // Note: If the window is narrow enough that the zoom box is not
       //       visible, we temporarily show it to be able to adjust its width.
       if (container.clientWidth === 0) {
-        container.setAttribute('style', 'display: inherit;');
+        container.setAttribute("style", "display: inherit;");
       }
       if (container.clientWidth > 0) {
-        select.setAttribute('style', 'min-width: inherit;');
-        let width = select.clientWidth + SCALE_SELECT_CONTAINER_PADDING;
-        select.setAttribute('style', 'min-width: ' +
-                                     (width + SCALE_SELECT_PADDING) + 'px;');
-        container.setAttribute('style', 'min-width: ' + width + 'px; ' +
-                                        'max-width: ' + width + 'px;');
+        select.setAttribute("style", "min-width: inherit;");
+        const width = select.clientWidth + SCALE_SELECT_CONTAINER_PADDING;
+        select.setAttribute(
+          "style",
+          `min-width: ${width + SCALE_SELECT_PADDING}px;`
+        );
+        container.setAttribute(
+          "style",
+          `min-width: ${width}px; max-width: ${width}px;`
+        );
       }
     });
   }
 }
 
-export {
-  Toolbar,
-};
+export { Toolbar };
