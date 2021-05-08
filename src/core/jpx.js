@@ -20,8 +20,8 @@ import {
   readUint16,
   readUint32,
   warn,
-} from "../shared/util";
-import { ArithmeticDecoder } from "./arithmetic_decoder";
+} from "../shared/util.js";
+import { ArithmeticDecoder } from "./arithmetic_decoder.js";
 
 class JpxError extends BaseException {
   constructor(msg) {
@@ -1762,12 +1762,15 @@ var JpxImage = (function JpxImageClosure() {
       this.width = width;
       this.height = height;
 
-      this.contextLabelTable =
-        subband === "HH"
-          ? HHContextLabel
-          : subband === "HL"
-          ? HLContextLabel
-          : LLAndLHContextsLabel;
+      let contextLabelTable;
+      if (subband === "HH") {
+        contextLabelTable = HHContextLabel;
+      } else if (subband === "HL") {
+        contextLabelTable = HLContextLabel;
+      } else {
+        contextLabelTable = LLAndLHContextsLabel;
+      }
+      this.contextLabelTable = contextLabelTable;
 
       var coefficientCount = width * height;
 
@@ -1775,12 +1778,15 @@ var JpxImage = (function JpxImageClosure() {
       // add border state cells for significanceState
       this.neighborsSignificance = new Uint8Array(coefficientCount);
       this.coefficentsSign = new Uint8Array(coefficientCount);
-      this.coefficentsMagnitude =
-        mb > 14
-          ? new Uint32Array(coefficientCount)
-          : mb > 6
-          ? new Uint16Array(coefficientCount)
-          : new Uint8Array(coefficientCount);
+      let coefficentsMagnitude;
+      if (mb > 14) {
+        coefficentsMagnitude = new Uint32Array(coefficientCount);
+      } else if (mb > 6) {
+        coefficentsMagnitude = new Uint16Array(coefficientCount);
+      } else {
+        coefficentsMagnitude = new Uint8Array(coefficientCount);
+      }
+      this.coefficentsMagnitude = coefficentsMagnitude;
       this.processingFlags = new Uint8Array(coefficientCount);
 
       var bitsDecoded = new Uint8Array(coefficientCount);

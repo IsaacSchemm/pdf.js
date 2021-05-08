@@ -20,7 +20,7 @@ import {
   getFilenameFromUrl,
   LinkTarget,
   PDFDateString,
-} from "./display_utils";
+} from "./display_utils.js";
 import {
   AnnotationBorderStyleType,
   AnnotationType,
@@ -28,7 +28,7 @@ import {
   unreachable,
   Util,
   warn,
-} from "../shared/util";
+} from "../shared/util.js";
 
 /**
  * @typedef {Object} AnnotationElementParameters
@@ -510,13 +510,13 @@ class TextWidgetAnnotationElement extends WidgetAnnotationElement {
       return;
     }
 
-    style.fontWeight = font.black
-      ? font.bold
-        ? "900"
-        : "bold"
-      : font.bold
-      ? "bold"
-      : "normal";
+    let bold = "normal";
+    if (font.black) {
+      bold = "900";
+    } else if (font.bold) {
+      bold = "bold";
+    }
+    style.fontWeight = bold;
     style.fontStyle = font.italic ? "italic" : "normal";
 
     // Use a reasonable default font if the font doesn't specify a fallback.

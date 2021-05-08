@@ -26,7 +26,7 @@ if (
   }
   globalThis._pdfjsCompatibilityChecked = true;
 
-  const { isNodeJS } = require("./is_node");
+  const { isNodeJS } = require("./is_node.js");
 
   const hasDOM = typeof window === "object" && typeof document === "object";
   const userAgent =
@@ -147,7 +147,7 @@ if (
     if (String.prototype.startsWith) {
       return;
     }
-    require("core-js/es/string/starts-with");
+    require("core-js/es/string/starts-with.js");
   })();
 
   // Provides support for String.prototype.endsWith in legacy browsers.
@@ -156,7 +156,7 @@ if (
     if (String.prototype.endsWith) {
       return;
     }
-    require("core-js/es/string/ends-with");
+    require("core-js/es/string/ends-with.js");
   })();
 
   // Provides support for String.prototype.includes in legacy browsers.
@@ -165,7 +165,7 @@ if (
     if (String.prototype.includes) {
       return;
     }
-    require("core-js/es/string/includes");
+    require("core-js/es/string/includes.js");
   })();
 
   // Provides support for Array.prototype.includes in legacy browsers.
@@ -174,7 +174,7 @@ if (
     if (Array.prototype.includes) {
       return;
     }
-    require("core-js/es/array/includes");
+    require("core-js/es/array/includes.js");
   })();
 
   // Provides support for Array.from in legacy browsers.
@@ -183,7 +183,7 @@ if (
     if (Array.from) {
       return;
     }
-    require("core-js/es/array/from");
+    require("core-js/es/array/from.js");
   })();
 
   // Provides support for Object.assign in legacy browsers.
@@ -192,7 +192,7 @@ if (
     if (Object.assign) {
       return;
     }
-    require("core-js/es/object/assign");
+    require("core-js/es/object/assign.js");
   })();
 
   // Provides support for Math.log2 in legacy browsers.
@@ -201,7 +201,7 @@ if (
     if (Math.log2) {
       return;
     }
-    Math.log2 = require("core-js/es/math/log2");
+    Math.log2 = require("core-js/es/math/log2.js");
   })();
 
   // Provides support for Number.isNaN in legacy browsers.
@@ -210,7 +210,7 @@ if (
     if (Number.isNaN) {
       return;
     }
-    Number.isNaN = require("core-js/es/number/is-nan");
+    Number.isNaN = require("core-js/es/number/is-nan.js");
   })();
 
   // Provides support for Number.isInteger in legacy browsers.
@@ -219,7 +219,7 @@ if (
     if (Number.isInteger) {
       return;
     }
-    Number.isInteger = require("core-js/es/number/is-integer");
+    Number.isInteger = require("core-js/es/number/is-integer.js");
   })();
 
   // Support: IE, Safari<11, Chrome<63
@@ -229,14 +229,10 @@ if (
       // need to be polyfilled for the IMAGE_DECODERS build target.
       return;
     }
-    if (
-      globalThis.Promise &&
-      globalThis.Promise.prototype &&
-      globalThis.Promise.prototype.finally
-    ) {
+    if (globalThis.Promise && globalThis.Promise.allSettled) {
       return;
     }
-    globalThis.Promise = require("core-js/es/promise/index");
+    globalThis.Promise = require("core-js/es/promise/index.js");
   })();
 
   // Support: IE
@@ -251,7 +247,7 @@ if (
       // builds.
       return;
     }
-    globalThis.URL = require("core-js/web/url");
+    globalThis.URL = require("core-js/web/url.js");
   })();
 
   // Support: IE, Node.js
@@ -280,7 +276,7 @@ if (
     if (isReadableStreamSupported) {
       return;
     }
-    globalThis.ReadableStream = require("web-streams-polyfill/dist/ponyfill").ReadableStream;
+    globalThis.ReadableStream = require("web-streams-polyfill/dist/ponyfill.js").ReadableStream;
   })();
 
   // Support: IE<11, Safari<8, Chrome<36
@@ -288,7 +284,7 @@ if (
     if (globalThis.WeakMap) {
       return;
     }
-    globalThis.WeakMap = require("core-js/es/weak-map/index");
+    globalThis.WeakMap = require("core-js/es/weak-map/index.js");
   })();
 
   // Support: IE11
@@ -296,7 +292,7 @@ if (
     if (globalThis.WeakSet) {
       return;
     }
-    globalThis.WeakSet = require("core-js/es/weak-set/index");
+    globalThis.WeakSet = require("core-js/es/weak-set/index.js");
   })();
 
   // Provides support for String.codePointAt in legacy browsers.
@@ -305,7 +301,7 @@ if (
     if (String.prototype.codePointAt) {
       return;
     }
-    require("core-js/es/string/code-point-at");
+    require("core-js/es/string/code-point-at.js");
   })();
 
   // Provides support for String.fromCodePoint in legacy browsers.
@@ -314,7 +310,7 @@ if (
     if (String.fromCodePoint) {
       return;
     }
-    String.fromCodePoint = require("core-js/es/string/from-code-point");
+    String.fromCodePoint = require("core-js/es/string/from-code-point.js");
   })();
 
   // Support: IE
@@ -322,7 +318,7 @@ if (
     if (globalThis.Symbol) {
       return;
     }
-    require("core-js/es/symbol/index");
+    require("core-js/es/symbol/index.js");
   })();
 
   // Provides support for String.prototype.padStart in legacy browsers.
@@ -331,7 +327,7 @@ if (
     if (String.prototype.padStart) {
       return;
     }
-    require("core-js/es/string/pad-start");
+    require("core-js/es/string/pad-start.js");
   })();
 
   // Provides support for String.prototype.padEnd in legacy browsers.
@@ -340,7 +336,7 @@ if (
     if (String.prototype.padEnd) {
       return;
     }
-    require("core-js/es/string/pad-end");
+    require("core-js/es/string/pad-end.js");
   })();
 
   // Provides support for Object.values in legacy browsers.
@@ -349,6 +345,6 @@ if (
     if (Object.values) {
       return;
     }
-    Object.values = require("core-js/es/object/values");
+    Object.values = require("core-js/es/object/values.js");
   })();
 }

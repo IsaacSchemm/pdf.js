@@ -27,7 +27,7 @@ import {
   string32,
   unreachable,
   warn,
-} from "../shared/util";
+} from "../shared/util.js";
 import {
   CFF,
   CFFCharset,
@@ -39,32 +39,32 @@ import {
   CFFStandardStrings,
   CFFStrings,
   CFFTopDict,
-} from "./cff_parser";
-import { getDingbatsGlyphsUnicode, getGlyphsUnicode } from "./glyphlist";
+} from "./cff_parser.js";
+import { getDingbatsGlyphsUnicode, getGlyphsUnicode } from "./glyphlist.js";
 import {
   getEncoding,
   MacRomanEncoding,
   StandardEncoding,
   SymbolSetEncoding,
   ZapfDingbatsEncoding,
-} from "./encodings";
+} from "./encodings.js";
 import {
   getGlyphMapForStandardFonts,
   getNonStdFontMap,
   getStdFontMap,
   getSupplementalGlyphMapForArialBlack,
   getSupplementalGlyphMapForCalibri,
-} from "./standard_fonts";
+} from "./standard_fonts.js";
 import {
   getUnicodeForGlyph,
   getUnicodeRangeFor,
   mapSpecialUnicodeValues,
-} from "./unicode";
-import { FontRendererFactory } from "./font_renderer";
-import { IdentityCMap } from "./cmap";
-import { MissingDataException } from "./core_utils";
-import { Stream } from "./stream";
-import { Type1Parser } from "./type1_parser";
+} from "./unicode.js";
+import { FontRendererFactory } from "./font_renderer.js";
+import { IdentityCMap } from "./cmap.js";
+import { MissingDataException } from "./core_utils.js";
+import { Stream } from "./stream.js";
+import { Type1Parser } from "./type1_parser.js";
 
 // Unicode Private Use Areas:
 const PRIVATE_USE_AREAS = [
@@ -97,266 +97,44 @@ var FontFlags = {
   ForceBold: 262144,
 };
 
+// prettier-ignore
 var MacStandardGlyphOrdering = [
-  ".notdef",
-  ".null",
-  "nonmarkingreturn",
-  "space",
-  "exclam",
-  "quotedbl",
-  "numbersign",
-  "dollar",
-  "percent",
-  "ampersand",
-  "quotesingle",
-  "parenleft",
-  "parenright",
-  "asterisk",
-  "plus",
-  "comma",
-  "hyphen",
-  "period",
-  "slash",
-  "zero",
-  "one",
-  "two",
-  "three",
-  "four",
-  "five",
-  "six",
-  "seven",
-  "eight",
-  "nine",
-  "colon",
-  "semicolon",
-  "less",
-  "equal",
-  "greater",
-  "question",
-  "at",
-  "A",
-  "B",
-  "C",
-  "D",
-  "E",
-  "F",
-  "G",
-  "H",
-  "I",
-  "J",
-  "K",
-  "L",
-  "M",
-  "N",
-  "O",
-  "P",
-  "Q",
-  "R",
-  "S",
-  "T",
-  "U",
-  "V",
-  "W",
-  "X",
-  "Y",
-  "Z",
-  "bracketleft",
-  "backslash",
-  "bracketright",
-  "asciicircum",
-  "underscore",
-  "grave",
-  "a",
-  "b",
-  "c",
-  "d",
-  "e",
-  "f",
-  "g",
-  "h",
-  "i",
-  "j",
-  "k",
-  "l",
-  "m",
-  "n",
-  "o",
-  "p",
-  "q",
-  "r",
-  "s",
-  "t",
-  "u",
-  "v",
-  "w",
-  "x",
-  "y",
-  "z",
-  "braceleft",
-  "bar",
-  "braceright",
-  "asciitilde",
-  "Adieresis",
-  "Aring",
-  "Ccedilla",
-  "Eacute",
-  "Ntilde",
-  "Odieresis",
-  "Udieresis",
-  "aacute",
-  "agrave",
-  "acircumflex",
-  "adieresis",
-  "atilde",
-  "aring",
-  "ccedilla",
-  "eacute",
-  "egrave",
-  "ecircumflex",
-  "edieresis",
-  "iacute",
-  "igrave",
-  "icircumflex",
-  "idieresis",
-  "ntilde",
-  "oacute",
-  "ograve",
-  "ocircumflex",
-  "odieresis",
-  "otilde",
-  "uacute",
-  "ugrave",
-  "ucircumflex",
-  "udieresis",
-  "dagger",
-  "degree",
-  "cent",
-  "sterling",
-  "section",
-  "bullet",
-  "paragraph",
-  "germandbls",
-  "registered",
-  "copyright",
-  "trademark",
-  "acute",
-  "dieresis",
-  "notequal",
-  "AE",
-  "Oslash",
-  "infinity",
-  "plusminus",
-  "lessequal",
-  "greaterequal",
-  "yen",
-  "mu",
-  "partialdiff",
-  "summation",
-  "product",
-  "pi",
-  "integral",
-  "ordfeminine",
-  "ordmasculine",
-  "Omega",
-  "ae",
-  "oslash",
-  "questiondown",
-  "exclamdown",
-  "logicalnot",
-  "radical",
-  "florin",
-  "approxequal",
-  "Delta",
-  "guillemotleft",
-  "guillemotright",
-  "ellipsis",
-  "nonbreakingspace",
-  "Agrave",
-  "Atilde",
-  "Otilde",
-  "OE",
-  "oe",
-  "endash",
-  "emdash",
-  "quotedblleft",
-  "quotedblright",
-  "quoteleft",
-  "quoteright",
-  "divide",
-  "lozenge",
-  "ydieresis",
-  "Ydieresis",
-  "fraction",
-  "currency",
-  "guilsinglleft",
-  "guilsinglright",
-  "fi",
-  "fl",
-  "daggerdbl",
-  "periodcentered",
-  "quotesinglbase",
-  "quotedblbase",
-  "perthousand",
-  "Acircumflex",
-  "Ecircumflex",
-  "Aacute",
-  "Edieresis",
-  "Egrave",
-  "Iacute",
-  "Icircumflex",
-  "Idieresis",
-  "Igrave",
-  "Oacute",
-  "Ocircumflex",
-  "apple",
-  "Ograve",
-  "Uacute",
-  "Ucircumflex",
-  "Ugrave",
-  "dotlessi",
-  "circumflex",
-  "tilde",
-  "macron",
-  "breve",
-  "dotaccent",
-  "ring",
-  "cedilla",
-  "hungarumlaut",
-  "ogonek",
-  "caron",
-  "Lslash",
-  "lslash",
-  "Scaron",
-  "scaron",
-  "Zcaron",
-  "zcaron",
-  "brokenbar",
-  "Eth",
-  "eth",
-  "Yacute",
-  "yacute",
-  "Thorn",
-  "thorn",
-  "minus",
-  "multiply",
-  "onesuperior",
-  "twosuperior",
-  "threesuperior",
-  "onehalf",
-  "onequarter",
-  "threequarters",
-  "franc",
-  "Gbreve",
-  "gbreve",
-  "Idotaccent",
-  "Scedilla",
-  "scedilla",
-  "Cacute",
-  "cacute",
-  "Ccaron",
-  "ccaron",
-  "dcroat",
-];
+  ".notdef", ".null", "nonmarkingreturn", "space", "exclam", "quotedbl",
+  "numbersign", "dollar", "percent", "ampersand", "quotesingle", "parenleft",
+  "parenright", "asterisk", "plus", "comma", "hyphen", "period", "slash",
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+  "nine", "colon", "semicolon", "less", "equal", "greater", "question", "at",
+  "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
+  "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "bracketleft",
+  "backslash", "bracketright", "asciicircum", "underscore", "grave", "a", "b",
+  "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q",
+  "r", "s", "t", "u", "v", "w", "x", "y", "z", "braceleft", "bar", "braceright",
+  "asciitilde", "Adieresis", "Aring", "Ccedilla", "Eacute", "Ntilde",
+  "Odieresis", "Udieresis", "aacute", "agrave", "acircumflex", "adieresis",
+  "atilde", "aring", "ccedilla", "eacute", "egrave", "ecircumflex", "edieresis",
+  "iacute", "igrave", "icircumflex", "idieresis", "ntilde", "oacute", "ograve",
+  "ocircumflex", "odieresis", "otilde", "uacute", "ugrave", "ucircumflex",
+  "udieresis", "dagger", "degree", "cent", "sterling", "section", "bullet",
+  "paragraph", "germandbls", "registered", "copyright", "trademark", "acute",
+  "dieresis", "notequal", "AE", "Oslash", "infinity", "plusminus", "lessequal",
+  "greaterequal", "yen", "mu", "partialdiff", "summation", "product", "pi",
+  "integral", "ordfeminine", "ordmasculine", "Omega", "ae", "oslash",
+  "questiondown", "exclamdown", "logicalnot", "radical", "florin",
+  "approxequal", "Delta", "guillemotleft", "guillemotright", "ellipsis",
+  "nonbreakingspace", "Agrave", "Atilde", "Otilde", "OE", "oe", "endash",
+  "emdash", "quotedblleft", "quotedblright", "quoteleft", "quoteright",
+  "divide", "lozenge", "ydieresis", "Ydieresis", "fraction", "currency",
+  "guilsinglleft", "guilsinglright", "fi", "fl", "daggerdbl", "periodcentered",
+  "quotesinglbase", "quotedblbase", "perthousand", "Acircumflex",
+  "Ecircumflex", "Aacute", "Edieresis", "Egrave", "Iacute", "Icircumflex",
+  "Idieresis", "Igrave", "Oacute", "Ocircumflex", "apple", "Ograve", "Uacute",
+  "Ucircumflex", "Ugrave", "dotlessi", "circumflex", "tilde", "macron",
+  "breve", "dotaccent", "ring", "cedilla", "hungarumlaut", "ogonek", "caron",
+  "Lslash", "lslash", "Scaron", "scaron", "Zcaron", "zcaron", "brokenbar",
+  "Eth", "eth", "Yacute", "yacute", "Thorn", "thorn", "minus", "multiply",
+  "onesuperior", "twosuperior", "threesuperior", "onehalf", "onequarter",
+  "threequarters", "franc", "Gbreve", "gbreve", "Idotaccent", "Scedilla",
+  "scedilla", "Cacute", "cacute", "Ccaron", "ccaron", "dcroat"];
 
 function adjustWidths(properties) {
   if (!properties.fontMatrix) {
@@ -752,11 +530,13 @@ var Font = (function FontClosure() {
     this.type = type;
     this.subtype = subtype;
 
-    this.fallbackName = this.isMonospace
-      ? "monospace"
-      : this.isSerifFont
-      ? "serif"
-      : "sans-serif";
+    let fallbackName = "sans-serif";
+    if (this.isMonospace) {
+      fallbackName = "monospace";
+    } else if (this.isSerifFont) {
+      fallbackName = "serif";
+    }
+    this.fallbackName = fallbackName;
 
     this.differences = properties.differences;
     this.widths = properties.widths;
@@ -901,7 +681,11 @@ var Font = (function FontClosure() {
 
   function safeString16(value) {
     // clamp value to the 16-bit int range
-    value = value > 0x7fff ? 0x7fff : value < -0x8000 ? -0x8000 : value;
+    if (value > 0x7fff) {
+      value = 0x7fff;
+    } else if (value < -0x8000) {
+      value = -0x8000;
+    }
     return String.fromCharCode((value >> 8) & 0xff, value & 0xff);
   }
 
@@ -2075,9 +1859,19 @@ var Font = (function FontClosure() {
             // reserved flags must be zero, cleaning up
             glyf[j - 1] = flag & 0x3f;
           }
-          var xyLength =
-            (flag & 2 ? 1 : flag & 16 ? 0 : 2) +
-            (flag & 4 ? 1 : flag & 32 ? 0 : 2);
+          let xLength = 2;
+          if (flag & 2) {
+            xLength = 1;
+          } else if (flag & 16) {
+            xLength = 0;
+          }
+          let yLength = 2;
+          if (flag & 4) {
+            yLength = 1;
+          } else if (flag & 32) {
+            yLength = 0;
+          }
+          const xyLength = xLength + yLength;
           coordinatesLength += xyLength;
           if (flag & 8) {
             var repeat = glyf[j++];
@@ -2620,14 +2414,14 @@ var Font = (function FontClosure() {
           }
           // Adjusting stack not extactly, but just enough to get function id
           if (!inFDEF && !inELSE) {
-            var stackDelta =
-              op <= 0x8e
-                ? TTOpsStackDeltas[op]
-                : op >= 0xc0 && op <= 0xdf
-                ? -1
-                : op >= 0xe0
-                ? -2
-                : 0;
+            let stackDelta = 0;
+            if (op <= 0x8e) {
+              stackDelta = TTOpsStackDeltas[op];
+            } else if (op >= 0xc0 && op <= 0xdf) {
+              stackDelta = -1;
+            } else if (op >= 0xe0) {
+              stackDelta = -2;
+            }
             if (op >= 0x71 && op <= 0x75) {
               n = stack.pop();
               if (!isNaN(n)) {

@@ -23,14 +23,14 @@ import {
   RendererType,
   roundToDivide,
   TextLayerMode,
-} from "./ui_utils";
+} from "./ui_utils.js";
 import {
   createPromiseCapability,
   RenderingCancelledException,
   SVGGraphics,
 } from "pdfjs-lib";
-import { RenderingStates } from "./pdf_rendering_queue";
-import { viewerCompatibilityParams } from "./viewer_compatibility";
+import { RenderingStates } from "./pdf_rendering_queue.js";
+import { viewerCompatibilityParams } from "./viewer_compatibility.js";
 
 /**
  * @typedef {Object} PDFPageViewOptions
@@ -559,7 +559,11 @@ class PDFPageView {
 
     const viewport = this.viewport;
     const canvas = document.createElement("canvas");
-    canvas.id = this.renderingId;
+    this.l10n
+      .get("page_canvas", { page: this.id }, "Page {{page}}")
+      .then(msg => {
+        canvas.setAttribute("aria-label", msg);
+      });
 
     // Keep the canvas hidden until the first draw callback, or until drawing
     // is complete when `!this.renderingQueue`, to prevent black flickering.

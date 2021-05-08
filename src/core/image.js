@@ -13,12 +13,12 @@
  * limitations under the License.
  */
 
-import { assert, FormatError, ImageKind, info, warn } from "../shared/util";
-import { isName, isStream, Name } from "./primitives";
-import { ColorSpace } from "./colorspace";
-import { DecodeStream } from "./stream";
-import { JpegStream } from "./jpeg_stream";
-import { JpxImage } from "./jpx";
+import { assert, FormatError, ImageKind, info, warn } from "../shared/util.js";
+import { isName, isStream, Name } from "./primitives.js";
+import { ColorSpace } from "./colorspace.js";
+import { DecodeStream } from "./stream.js";
+import { JpegStream } from "./jpeg_stream.js";
+import { JpxImage } from "./jpx.js";
 
 var PDFImage = (function PDFImageClosure() {
   /**
@@ -45,7 +45,12 @@ var PDFImage = (function PDFImageClosure() {
   function decodeAndClamp(value, addend, coefficient, max) {
     value = addend + value * coefficient;
     // Clamp the value to the range
-    return value < 0 ? 0 : value > max ? max : value;
+    if (value < 0) {
+      value = 0;
+    } else if (value > max) {
+      value = max;
+    }
+    return value;
   }
 
   /**
@@ -60,12 +65,14 @@ var PDFImage = (function PDFImageClosure() {
    */
   function resizeImageMask(src, bpc, w1, h1, w2, h2) {
     var length = w2 * h2;
-    var dest =
-      bpc <= 8
-        ? new Uint8Array(length)
-        : bpc <= 16
-        ? new Uint16Array(length)
-        : new Uint32Array(length);
+    let dest;
+    if (bpc <= 8) {
+      dest = new Uint8Array(length);
+    } else if (bpc <= 16) {
+      dest = new Uint16Array(length);
+    } else {
+      dest = new Uint32Array(length);
+    }
     var xRatio = w1 / w2;
     var yRatio = h1 / h2;
     var i,
@@ -421,12 +428,14 @@ var PDFImage = (function PDFImageClosure() {
 
       var length = width * height * numComps;
       var bufferPos = 0;
-      var output =
-        bpc <= 8
-          ? new Uint8Array(length)
-          : bpc <= 16
-          ? new Uint16Array(length)
-          : new Uint32Array(length);
+      let output;
+      if (bpc <= 8) {
+        output = new Uint8Array(length);
+      } else if (bpc <= 16) {
+        output = new Uint16Array(length);
+      } else {
+        output = new Uint32Array(length);
+      }
       var rowComps = width * numComps;
 
       var max = (1 << bpc) - 1;
@@ -481,8 +490,13 @@ var PDFImage = (function PDFImageClosure() {
           }
 
           var remainingBits = bits - bpc;
-          var value = buf >> remainingBits;
-          output[i] = value < 0 ? 0 : value > max ? max : value;
+          let value = buf >> remainingBits;
+          if (value < 0) {
+            value = 0;
+          } else if (value > max) {
+            value = max;
+          }
+          output[i] = value;
           buf = buf & ((1 << remainingBits) - 1);
           bits = remainingBits;
         }

@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-import { warn } from "../shared/util";
+import { warn } from "../shared/util.js";
 
 // Character types for symbols from 0000 to 00FF.
 // Source: ftp://ftp.unicode.org/Public/UNIDATA/UnicodeData.txt
@@ -104,11 +104,14 @@ function reverseValues(arr, start, end) {
   }
 }
 
-function createBidiText(str, isLTR, vertical) {
-  return {
-    str,
-    dir: vertical ? "ttb" : isLTR ? "ltr" : "rtl",
-  };
+function createBidiText(str, isLTR, vertical = false) {
+  let dir = "ltr";
+  if (vertical) {
+    dir = "ttb";
+  } else if (!isLTR) {
+    dir = "rtl";
+  }
+  return { str, dir };
 }
 
 // These are used in bidi(), which is called frequently. We re-use them on
