@@ -1,6 +1,6 @@
 # PDF.js
 
-This is a fork of PDF.js which works with SeaMonkey 2.49.x and Firefox 52 ESR. It may also work in Pale Moon.
+This is a fork of PDF.js designed for SeaMonkey 2.49+ and Pale Moon 29+.
 
 Note that any "testing" that exists for this fork is very limited, and some features may not work. Before filing a bug on this fork, first check to see if the problem occurs on the newest version of Firefox - if it does, file the bug on Mozilla's upstream repository instead.
 
