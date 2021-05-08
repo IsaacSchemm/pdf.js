@@ -21,7 +21,7 @@ import {
 } from '../shared/util';
 import { CMapFactory, IdentityCMap } from './cmap';
 import {
-  Cmd, Dict, EOF, isDict, isName, isRef, isStream, Name
+  Cmd, Dict, EOF, isDict, isName, isRef, isStream, Name, Ref
 } from './primitives';
 import {
   ErrorFont, Font, FontFlags, getFontType, IdentityToUnicodeMap, ToUnicodeMap
@@ -180,7 +180,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
     },
 
     hasBlendModes: function PartialEvaluator_hasBlendModes(resources) {
-      if (!isDict(resources)) {
+      if (!(resources instanceof Dict)) {
         return false;
       }
 
@@ -191,33 +191,44 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
 
       var nodes = [resources], xref = this.xref;
       while (nodes.length) {
-        var key, i, ii;
         var node = nodes.shift();
         // First check the current resources for blend modes.
         var graphicStates = node.get('ExtGState');
-        if (isDict(graphicStates)) {
+        if (graphicStates instanceof Dict) {
           var graphicStatesKeys = graphicStates.getKeys();
-          for (i = 0, ii = graphicStatesKeys.length; i < ii; i++) {
-            key = graphicStatesKeys[i];
+          for (let i = 0, ii = graphicStatesKeys.length; i < ii; i++) {
+            const key = graphicStatesKeys[i];
 
-            var graphicState = graphicStates.get(key);
+            let graphicState = graphicStates.getRaw(key);
+            if (graphicState instanceof Ref) {
+              if (processed[graphicState.toString()]) {
+                continue; // The ExtGState has already been processed.
+              }
+              graphicState = xref.fetch(graphicState);
+            }
+            if (!(graphicState instanceof Dict)) {
+              continue;
+            }
+            if (graphicState.objId) {
+              processed[graphicState.objId] = true;
+            }
             var bm = graphicState.get('BM');
-            if (isName(bm) && bm.name !== 'Normal') {
+            if ((bm instanceof Name) && bm.name !== 'Normal') {
               return true;
             }
           }
         }
         // Descend into the XObjects to look for more resources and blend modes.
         var xObjects = node.get('XObject');
-        if (!isDict(xObjects)) {
+        if (!(xObjects instanceof Dict)) {
           continue;
         }
         var xObjectsKeys = xObjects.getKeys();
-        for (i = 0, ii = xObjectsKeys.length; i < ii; i++) {
-          key = xObjectsKeys[i];
+        for (let i = 0, ii = xObjectsKeys.length; i < ii; i++) {
+          const key = xObjectsKeys[i];
 
           var xObject = xObjects.getRaw(key);
-          if (isRef(xObject)) {
+          if (xObject instanceof Ref) {
             if (processed[xObject.toString()]) {
               // The XObject has already been processed, and by avoiding a
               // redundant `xref.fetch` we can *significantly* reduce the load
@@ -231,14 +242,13 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
           }
           if (xObject.dict.objId) {
             if (processed[xObject.dict.objId]) {
-              // stream has objId and is processed already
-              continue;
+              continue; // Stream has objId and was processed already.
             }
             processed[xObject.dict.objId] = true;
           }
           var xResources = xObject.dict.get('Resources');
           // Checking objId to detect an infinite loop.
-          if (isDict(xResources) &&
+          if ((xResources instanceof Dict) &&
               (!xResources.objId || !processed[xResources.objId])) {
             nodes.push(xResources);
             if (xResources.objId) {
@@ -711,21 +721,35 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       var fontRef, xref = this.xref;
       if (font) { // Loading by ref.
         if (!isRef(font)) {
-          throw new Error('The "font" object should be a reference.');
+          throw new FormatError('The "font" object should be a reference.');
         }
         fontRef = font;
       } else { // Loading by name.
         var fontRes = resources.get('Font');
         if (fontRes) {
           fontRef = fontRes.getRaw(fontName);
-        } else {
-          warn('fontRes not available');
-          return errorFont();
         }
       }
       if (!fontRef) {
-        warn('fontRef not available');
-        return errorFont();
+        const partialMsg =
+          `Font "${fontName || (font && font.toString())}" is not available`;
+
+        if (!this.options.ignoreErrors && !this.parsingType3Font) {
+          warn(`${partialMsg}.`);
+          return errorFont();
+        }
+        // Font not found -- sending unsupported feature notification.
+        this.handler.send('UnsupportedFeature',
+                          { featureId: UNSUPPORTED_FEATURES.font, });
+        warn(`${partialMsg} -- attempting to fallback to a default font.`);
+
+        // Falling back to a default font to avoid completely broken rendering,
+        // but note that there're no guarantees that things will look "correct".
+        fontRef = new Dict();
+        fontRef.set('BaseFont', Name.get('PDFJS-FallbackFont'));
+        fontRef.set('Type', Name.get('FallbackType'));
+        fontRef.set('Subtype', Name.get('FallbackType'));
+        fontRef.set('Encoding', Name.get('WinAnsiEncoding'));
       }
 
       if (this.fontCache.has(fontRef)) {
@@ -1977,7 +2001,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
      * @returns {ToUnicodeMap}
      * @private
      */
-    _buildSimpleFontToUnicode(properties) {
+    _buildSimpleFontToUnicode(properties, forceGlyphs = false) {
       assert(!properties.composite, 'Must be a simple font.');
 
       let toUnicode = [], charcode, glyphName;
@@ -2017,14 +2041,31 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
                 code = parseInt(glyphName.substring(1), 16);
               }
               break;
-            case 'C': // Cddd glyph
-            case 'c': // cddd glyph
-              if (glyphName.length >= 3) {
-                code = +glyphName.substring(1);
+            case 'C': // Cdd{d} glyph
+            case 'c': // cdd{d} glyph
+              if (glyphName.length >= 3 && glyphName.length <= 4) {
+                const codeStr = glyphName.substring(1);
+
+                if (forceGlyphs) {
+                  code = parseInt(codeStr, 16);
+                  break;
+                }
+                // Normally the Cdd{d}/cdd{d} glyphName format will contain
+                // regular, i.e. base 10, charCodes (see issue4550.pdf)...
+                code = +codeStr;
+
+                // ... however some PDF generators violate that assumption by
+                // containing glyph, i.e. base 16, codes instead.
+                // In that case we need to re-parse the *entire* encoding to
+                // prevent broken text-selection (fixes issue9655_reduced.pdf).
+                if (Number.isNaN(code) &&
+                    Number.isInteger(parseInt(codeStr, 16))) {
+                  return this._buildSimpleFontToUnicode(properties,
+                                                        /* forceGlyphs */ true);
+                }
               }
               break;
-            default:
-              // 'uniXXXX'/'uXXXX{XX}' glyphs
+            default: // 'uniXXXX'/'uXXXX{XX}' glyphs
               let unicode = getUnicodeForGlyph(glyphName, glyphsUnicodeMap);
               if (unicode !== -1) {
                 code = unicode;
@@ -2054,7 +2095,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
     /**
      * Builds a char code to unicode map based on section 9.10 of the spec.
      * @param {Object} properties Font properties object.
-     * @return {Promise} A Promise that is resolved with a
+     * @returns {Promise} A Promise that is resolved with a
      *   {ToUnicodeMap|IdentityToUnicodeMap} object.
      */
     buildToUnicode(properties) {

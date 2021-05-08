@@ -31,7 +31,13 @@ const StreamKind = {
 };
 
 function wrapReason(reason) {
-  if (typeof reason !== 'object') {
+  if (typeof PDFJSDev === 'undefined' ||
+      PDFJSDev.test('!PRODUCTION || TESTING')) {
+    assert(reason instanceof Error ||
+           (typeof reason === 'object' && reason !== null),
+           'wrapReason: Expected "reason" to be a (possibly cloned) Error.');
+  }
+  if (typeof reason !== 'object' || reason === null) {
     return reason;
   }
   switch (reason.name) {
@@ -126,9 +132,9 @@ MessageHandler.prototype = {
   },
   /**
    * Sends a message to the comObj to invoke the action with the supplied data.
-   * @param {String} actionName - Action to call.
+   * @param {string} actionName - Action to call.
    * @param {JSON} data - JSON data to send.
-   * @param {Array} [transfers] - Optional list of transfers/ArrayBuffers
+   * @param {Array} [transfers] - List of transfers/ArrayBuffers.
    */
   send(actionName, data, transfers) {
     this.postMessage({
@@ -141,9 +147,9 @@ MessageHandler.prototype = {
   /**
    * Sends a message to the comObj to invoke the action with the supplied data.
    * Expects that the other side will callback with the response.
-   * @param {String} actionName - Action to call.
+   * @param {string} actionName - Action to call.
    * @param {JSON} data - JSON data to send.
-   * @param {Array} [transfers] - Optional list of transfers/ArrayBuffers.
+   * @param {Array} [transfers] - List of transfers/ArrayBuffers.
    * @returns {Promise} Promise to be resolved with response data.
    */
   sendWithPromise(actionName, data, transfers) {
@@ -166,12 +172,12 @@ MessageHandler.prototype = {
   /**
    * Sends a message to the comObj to invoke the action with the supplied data.
    * Expect that the other side will callback to signal 'start_complete'.
-   * @param {String} actionName - Action to call.
+   * @param {string} actionName - Action to call.
    * @param {JSON} data - JSON data to send.
-   * @param {Object} queueingStrategy - strategy to signal backpressure based on
+   * @param {Object} queueingStrategy - Strategy to signal backpressure based on
    *                 internal queue.
-   * @param {Array} [transfers] - Optional list of transfers/ArrayBuffers.
-   * @return {ReadableStream} ReadableStream to read data in chunks.
+   * @param {Array} [transfers] - List of transfers/ArrayBuffers.
+   * @returns {ReadableStream} ReadableStream to read data in chunks.
    */
   sendWithStream(actionName, data, queueingStrategy, transfers) {
     let streamId = this.streamId++;
@@ -334,20 +340,6 @@ MessageHandler.prototype = {
     const streamId = data.streamId;
     const comObj = this.comObj;
 
-    let deleteStreamController = () => {
-      // Delete the `streamController` only when the start, pull, and cancel
-      // capabilities have settled, to prevent `TypeError`s.
-      Promise.all([
-        this.streamControllers[streamId].startCall,
-        this.streamControllers[streamId].pullCall,
-        this.streamControllers[streamId].cancelCall
-      ].map(function(capability) {
-        return capability && capability.promise.catch(function() { });
-      })).then(() => {
-        delete this.streamControllers[streamId];
-      });
-    };
-
     switch (data.stream) {
       case StreamKind.START_COMPLETE:
         if (data.success) {
@@ -423,14 +415,14 @@ MessageHandler.prototype = {
         }
         this.streamControllers[streamId].isClosed = true;
         this.streamControllers[streamId].controller.close();
-        deleteStreamController();
+        this._deleteStreamController(streamId);
         break;
       case StreamKind.ERROR:
         assert(this.streamControllers[streamId],
                'error should have stream controller');
         this.streamControllers[streamId].controller.error(
           wrapReason(data.reason));
-        deleteStreamController();
+        this._deleteStreamController(streamId);
         break;
       case StreamKind.CANCEL_COMPLETE:
         if (data.success) {
@@ -439,7 +431,7 @@ MessageHandler.prototype = {
           this.streamControllers[streamId].cancelCall.reject(
             wrapReason(data.reason));
         }
-        deleteStreamController();
+        this._deleteStreamController(streamId);
         break;
       case StreamKind.CANCEL:
         if (!this.streamSinks[streamId]) {
@@ -473,6 +465,19 @@ MessageHandler.prototype = {
       default:
         throw new Error('Unexpected stream case');
     }
+  },
+
+  async _deleteStreamController(streamId) {
+    // Delete the `streamController` only when the start, pull, and cancel
+    // capabilities have settled, to prevent `TypeError`s.
+    await Promise.all([
+      this.streamControllers[streamId].startCall,
+      this.streamControllers[streamId].pullCall,
+      this.streamControllers[streamId].cancelCall
+    ].map(function(capability) {
+      return capability && capability.promise.catch(function() { });
+    }));
+    delete this.streamControllers[streamId];
   },
 
   /**
