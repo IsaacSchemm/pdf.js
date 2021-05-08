@@ -25,7 +25,6 @@ var gulp = require('gulp');
 var postcss = require('gulp-postcss');
 var rename = require('gulp-rename');
 var replace = require('gulp-replace');
-var transform = require('gulp-transform');
 var mkdirp = require('mkdirp');
 var path = require('path');
 var rimraf = require('rimraf');
@@ -40,6 +39,7 @@ var webpack2 = require('webpack');
 var webpackStream = require('webpack-stream');
 var Vinyl = require('vinyl');
 var vfs = require('vinyl-fs');
+var through = require('through2');
 
 var BUILD_DIR = 'build/';
 var L10N_DIR = 'l10n/';
@@ -101,6 +101,17 @@ var DEFINES = {
   SKIP_BABEL: false,
   IMAGE_DECODERS: false,
 };
+
+function transform(charEncoding, transformFunction) {
+  return through.obj(function(vinylFile, enc, done) {
+    var transformedFile = vinylFile.clone();
+    transformedFile.contents = Buffer.from(
+      transformFunction(transformedFile.contents),
+      charEncoding
+    );
+    done(null, transformedFile);
+  });
+}
 
 function safeSpawnSync(command, parameters, options) {
   // Execute all commands in a shell.
@@ -1005,7 +1016,7 @@ gulp.task('seamonkey', gulp.series('seamonkey-pre', function (done) {
 }));
 
 gulp.task('mozcentral-pre', gulp.series('buildnumber', 'default_preferences',
-                                        'locale', function() {
+                                        function() {
   console.log();
   console.log('### Building mozilla-central extension');
   var defines = builder.merge(DEFINES, { MOZCENTRAL: true, SKIP_BABEL: true, });
@@ -1040,7 +1051,7 @@ gulp.task('mozcentral-pre', gulp.series('buildnumber', 'default_preferences',
         ]))
         .pipe(gulp.dest(MOZCENTRAL_CONTENT_DIR + 'web')),
 
-    gulp.src(FIREFOX_EXTENSION_DIR + 'locale/en-US/*.properties')
+    gulp.src('l10n/en-US/*.properties')
         .pipe(gulp.dest(MOZCENTRAL_L10N_DIR)),
     gulp.src(FIREFOX_EXTENSION_DIR + 'README.mozilla')
         .pipe(replace(/\bPDFJSSCRIPT_VERSION\b/g, version))
@@ -1488,6 +1499,7 @@ gulp.task('dist-pre', gulp.series('generic', 'components', 'image_decoders',
       'http': false,
       'https': false,
       'node-ensure': false,
+      'url': false,
       'zlib': false,
     },
     format: 'amd', // to not allow system.js to choose 'cjs'

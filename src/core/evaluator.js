@@ -125,8 +125,23 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
   };
 
   // Convert PDF blend mode names to HTML5 blend mode names.
-  function normalizeBlendMode(value) {
+  function normalizeBlendMode(value, parsingArray = false) {
+    if (Array.isArray(value)) {
+      // Use the first *supported* BM value in the Array (fixes issue11279.pdf).
+      for (let i = 0, ii = value.length; i < ii; i++) {
+        const maybeBM = normalizeBlendMode(value[i], /* parsingArray = */ true);
+        if (maybeBM) {
+          return maybeBM;
+        }
+      }
+      warn(`Unsupported blend mode Array: ${value}`);
+      return 'source-over';
+    }
+
     if (!isName(value)) {
+      if (parsingArray) {
+        return null;
+      }
       return 'source-over';
     }
     switch (value.name) {
@@ -164,7 +179,10 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       case 'Luminosity':
         return 'luminosity';
     }
-    warn('Unsupported blend mode: ' + value.name);
+    if (parsingArray) {
+      return null;
+    }
+    warn(`Unsupported blend mode: ${value.name}`);
     return 'source-over';
   }
 
@@ -212,9 +230,20 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
             if (graphicState.objId) {
               processed[graphicState.objId] = true;
             }
-            var bm = graphicState.get('BM');
-            if ((bm instanceof Name) && bm.name !== 'Normal') {
-              return true;
+
+            const bm = graphicState.get('BM');
+            if (bm instanceof Name) {
+              if (bm.name !== 'Normal') {
+                return true;
+              }
+              continue;
+            }
+            if (bm !== undefined && Array.isArray(bm)) {
+              for (let j = 0, jj = bm.length; j < jj; j++) {
+                if ((bm[j] instanceof Name) && bm[j].name !== 'Normal') {
+                  return true;
+                }
+              }
             }
           }
         }
@@ -260,11 +289,8 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       return false;
     },
 
-    buildFormXObject: function PartialEvaluator_buildFormXObject(resources,
-                                                                 xobj, smask,
-                                                                 operatorList,
-                                                                 task,
-                                                                 initialState) {
+    async buildFormXObject(resources, xobj, smask, operatorList, task,
+                           initialState) {
       var dict = xobj.dict;
       var matrix = dict.getArray('Matrix');
       var bbox = dict.getArray('BBox');
@@ -289,14 +315,10 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
           groupOptions.isolated = (group.get('I') || false);
           groupOptions.knockout = (group.get('K') || false);
           if (group.has('CS')) {
-            colorSpace = group.get('CS');
-            if (colorSpace) {
-              colorSpace = ColorSpace.parse(colorSpace, this.xref, resources,
-                                            this.pdfFunctionFactory);
-            } else {
-              warn('buildFormXObject - invalid/non-existent Group /CS entry: ' +
-                   group.getRaw('CS'));
-            }
+            colorSpace = await this.parseColorSpace({
+              cs: group.get('CS'),
+              resources,
+            });
           }
         }
 
@@ -905,6 +927,26 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       }
     },
 
+    parseColorSpace({ cs, resources, }) {
+      return new Promise((resolve) => {
+        resolve(ColorSpace.parse(cs, this.xref, resources,
+                                 this.pdfFunctionFactory));
+      }).catch((reason) => {
+        if (reason instanceof AbortException) {
+          return null;
+        }
+        if (this.options.ignoreErrors) {
+          // Error(s) in the ColorSpace -- sending unsupported feature
+          // notification and allow rendering to continue.
+          this.handler.send('UnsupportedFeature',
+                            { featureId: UNSUPPORTED_FEATURES.unknown, });
+          warn(`parseColorSpace - ignoring ColorSpace: "${reason}".`);
+          return null;
+        }
+        throw reason;
+      });
+    },
+
     async handleColorN(operatorList, fn, args, cs, patterns, resources, task) {
       // compile tiling patterns
       var patternName = args[args.length - 1];
@@ -1129,15 +1171,25 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
               break;
 
             case OPS.setFillColorSpace:
-              stateManager.state.fillColorSpace =
-                ColorSpace.parse(args[0], xref, resources,
-                                 self.pdfFunctionFactory);
-              continue;
+              next(self.parseColorSpace({
+                cs: args[0],
+                resources,
+              }).then(function(colorSpace) {
+                if (colorSpace) {
+                  stateManager.state.fillColorSpace = colorSpace;
+                }
+              }));
+              return;
             case OPS.setStrokeColorSpace:
-              stateManager.state.strokeColorSpace =
-                ColorSpace.parse(args[0], xref, resources,
-                                 self.pdfFunctionFactory);
-              continue;
+              next(self.parseColorSpace({
+                cs: args[0],
+                resources,
+              }).then(function(colorSpace) {
+                if (colorSpace) {
+                  stateManager.state.strokeColorSpace = colorSpace;
+                }
+              }));
+              return;
             case OPS.setFillColor:
               cs = stateManager.state.fillColorSpace;
               args = cs.getRgb(args, 0);

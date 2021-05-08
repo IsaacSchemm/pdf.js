@@ -86,7 +86,9 @@ var Stream = (function StreamClosure() {
     },
     peekByte: function Stream_peekByte() {
       var peekedByte = this.getByte();
-      this.pos--;
+      if (peekedByte !== -1) {
+        this.pos--;
+      }
       return peekedByte;
     },
     peekBytes(length, forceClamped = false) {
@@ -234,7 +236,9 @@ var DecodeStream = (function DecodeStreamClosure() {
     },
     peekByte: function DecodeStream_peekByte() {
       var peekedByte = this.getByte();
-      this.pos--;
+      if (peekedByte !== -1) {
+        this.pos--;
+      }
       return peekedByte;
     },
     peekBytes(length, forceClamped = false) {
@@ -576,21 +580,19 @@ var FlateStream = (function FlateStreamClosure() {
       this.codeBuf = 0;
       this.codeSize = 0;
 
-      var bufferLength = this.bufferLength;
-      buffer = this.ensureBuffer(bufferLength + blockLen);
-      var end = bufferLength + blockLen;
+      const bufferLength = this.bufferLength, end = bufferLength + blockLen;
+      buffer = this.ensureBuffer(end);
       this.bufferLength = end;
+
       if (blockLen === 0) {
         if (str.peekByte() === -1) {
           this.eof = true;
         }
       } else {
-        for (var n = bufferLength; n < end; ++n) {
-          if ((b = str.getByte()) === -1) {
-            this.eof = true;
-            break;
-          }
-          buffer[n] = b;
+        const block = str.getBytes(blockLen);
+        buffer.set(block, bufferLength);
+        if (block.length < blockLen) {
+          this.eof = true;
         }
       }
       return;

@@ -181,7 +181,14 @@ class BaseViewer {
    * @type {boolean} - True if all {PDFPageView} objects are initialized.
    */
   get pageViewsReady() {
-    return this._pageViewsReady;
+    if (!this._pageViewsReady) {
+      return false;
+    }
+    // Prevent printing errors when 'disableAutoFetch' is set, by ensuring
+    // that *all* pages have in fact been completely loaded.
+    return this._pages.every(function(pageView) {
+      return !!(pageView && pageView.pdfPage);
+    });
   }
 
   /**
@@ -454,7 +461,10 @@ class BaseViewer {
           this.findController.setDocument(pdfDocument); // Enable searching.
         }
 
-        if (pdfDocument.loadingParams['disableAutoFetch']) {
+        // In addition to 'disableAutoFetch' being set, also attempt to reduce
+        // resource usage when loading *very* long/large documents.
+        if (pdfDocument.loadingParams['disableAutoFetch'] ||
+            pagesCount > 7500) {
           // XXX: Printing is semi-broken with auto fetch disabled.
           pagesCapability.resolve();
           return;
@@ -523,7 +533,7 @@ class BaseViewer {
     this._buffer = new PDFPageViewBuffer(DEFAULT_CACHE_SIZE);
     this._location = null;
     this._pagesRotation = 0;
-    this._pagesRequests = [];
+    this._pagesRequests = new WeakMap();
     this._pageViewsReady = false;
     this._scrollMode = ScrollMode.VERTICAL;
     this._spreadMode = SpreadMode.NONE;
@@ -951,22 +961,21 @@ class BaseViewer {
     if (pageView.pdfPage) {
       return Promise.resolve(pageView.pdfPage);
     }
-    let pageNumber = pageView.id;
-    if (this._pagesRequests[pageNumber]) {
-      return this._pagesRequests[pageNumber];
+    if (this._pagesRequests.has(pageView)) {
+      return this._pagesRequests.get(pageView);
     }
-    let promise = this.pdfDocument.getPage(pageNumber).then((pdfPage) => {
+    const promise = this.pdfDocument.getPage(pageView.id).then((pdfPage) => {
       if (!pageView.pdfPage) {
         pageView.setPdfPage(pdfPage);
       }
-      this._pagesRequests[pageNumber] = null;
+      this._pagesRequests.delete(pageView);
       return pdfPage;
     }).catch((reason) => {
       console.error('Unable to get page for page view', reason);
-      // Page error -- there is nothing can be done.
-      this._pagesRequests[pageNumber] = null;
+      // Page error -- there is nothing that can be done.
+      this._pagesRequests.delete(pageView);
     });
-    this._pagesRequests[pageNumber] = promise;
+    this._pagesRequests.set(pageView, promise);
     return promise;
   }
 

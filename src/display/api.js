@@ -27,13 +27,13 @@ import {
   unreachable, warn
 } from '../shared/util';
 import {
-  DOMCanvasFactory, DOMCMapReaderFactory, DummyStatTimer, loadScript,
-  PageViewport, releaseImageResources, RenderingCancelledException, StatTimer
+  DOMCanvasFactory, DOMCMapReaderFactory, loadScript, PageViewport,
+  releaseImageResources, RenderingCancelledException, StatTimer
 } from './display_utils';
 import { FontFaceObject, FontLoader } from './font_loader';
 import { apiCompatibilityParams } from './api_compatibility';
 import { CanvasGraphics } from './canvas';
-import globalScope from '../shared/global_scope';
+import { globalScope } from '../shared/global_scope';
 import { GlobalWorkerOptions } from './worker_options';
 import { MessageHandler } from '../shared/message_handler';
 import { Metadata } from './metadata';
@@ -805,6 +805,10 @@ class PDFDocumentProxy {
  * @property {number} scale - The desired scale of the viewport.
  * @property {number} [rotation] - The desired rotation, in degrees, of
  *   the viewport. If omitted it defaults to the page rotation.
+ * @property {number} [offsetX] - The horizontal, i.e. x-axis, offset.
+ *   The default value is `0`.
+ * @property {number} [offsetY] - The vertical, i.e. y-axis, offset.
+ *   The default value is `0`.
  * @property {boolean} [dontFlip] - If true, the y-axis will not be
  *   flipped. The default value is `false`.
  */
@@ -905,7 +909,7 @@ class PDFPageProxy {
     this.pageIndex = pageIndex;
     this._pageInfo = pageInfo;
     this._transport = transport;
-    this._stats = (pdfBug ? new StatTimer() : DummyStatTimer);
+    this._stats = (pdfBug ? new StatTimer() : null);
     this._pdfBug = pdfBug;
     this.commonObjs = transport.commonObjs;
     this.objs = new PDFObjects();
@@ -958,7 +962,8 @@ class PDFPageProxy {
    * @returns {PageViewport} Contains 'width' and 'height' properties
    *   along with transforms required for rendering.
    */
-  getViewport({ scale, rotation = this.rotate, dontFlip = false, } = {}) {
+  getViewport({ scale, rotation = this.rotate,
+                offsetX = 0, offsetY = 0, dontFlip = false, } = {}) {
     if ((typeof PDFJSDev !== 'undefined' && PDFJSDev.test('GENERIC')) &&
         (arguments.length > 1 || typeof arguments[0] === 'number')) {
       throw new Error(
@@ -968,6 +973,8 @@ class PDFPageProxy {
       viewBox: this.view,
       scale,
       rotation,
+      offsetX,
+      offsetY,
       dontFlip,
     });
   }
@@ -995,8 +1002,9 @@ class PDFPageProxy {
   render({ canvasContext, viewport, intent = 'display', enableWebGL = false,
            renderInteractiveForms = false, transform = null, imageLayer = null,
            canvasFactory = null, background = null, }) {
-    const stats = this._stats;
-    stats.time('Overall');
+    if (this._stats) {
+      this._stats.time('Overall');
+    }
 
     const renderingIntent = (intent === 'print' ? 'print' : 'display');
     // If there was a pending destroy, cancel it so no cleanup happens during
@@ -1029,7 +1037,9 @@ class PDFPageProxy {
         lastChunk: false,
       };
 
-      stats.time('Page Request');
+      if (this._stats) {
+        this._stats.time('Page Request');
+      }
       this._pumpOperatorList({
         pageIndex: this.pageNumber - 1,
         intent: renderingIntent,
@@ -1060,8 +1070,10 @@ class PDFPageProxy {
       } else {
         internalRenderTask.capability.resolve();
       }
-      stats.timeEnd('Rendering');
-      stats.timeEnd('Overall');
+      if (this._stats) {
+        this._stats.timeEnd('Rendering');
+        this._stats.timeEnd('Overall');
+      }
     };
 
     const internalRenderTask = new InternalRenderTask({
@@ -1094,7 +1106,9 @@ class PDFPageProxy {
         complete();
         return;
       }
-      stats.time('Rendering');
+      if (this._stats) {
+        this._stats.time('Rendering');
+      }
       internalRenderTask.initializeGraphics(transparency);
       internalRenderTask.operatorListChanged();
     }).catch(complete);
@@ -1137,7 +1151,9 @@ class PDFPageProxy {
         lastChunk: false,
       };
 
-      this._stats.time('Page Request');
+      if (this._stats) {
+        this._stats.time('Page Request');
+      }
       this._pumpOperatorList({
         pageIndex: this.pageIndex,
         intent: renderingIntent,
@@ -1259,7 +1275,7 @@ class PDFPageProxy {
     });
     this.objs.clear();
     this.annotationsPromise = null;
-    if (resetStats && this._stats instanceof StatTimer) {
+    if (resetStats && this._stats) {
       this._stats = new StatTimer();
     }
     this.pendingCleanup = false;
@@ -1273,7 +1289,9 @@ class PDFPageProxy {
     if (!intentState) {
       return; // Rendering was cancelled.
     }
-    this._stats.timeEnd('Page Request');
+    if (this._stats) {
+      this._stats.timeEnd('Page Request');
+    }
     // TODO Refactor RenderPageRequest to separate rendering
     // and operator list logic
     if (intentState.displayReadyCapability) {
@@ -1360,7 +1378,8 @@ class PDFPageProxy {
    * @private
    */
   _abortOperatorList({ intentState, reason, force = false, }) {
-    assert(reason instanceof Error,
+    assert(reason instanceof Error ||
+           (typeof reason === 'object' && reason !== null),
            'PDFPageProxy._abortOperatorList: Expected "reason" argument.');
 
     if (!intentState.streamReader) {
@@ -1404,10 +1423,10 @@ class PDFPageProxy {
   }
 
   /**
-   * @type {Object} Returns page stats, if enabled.
+   * @type {Object} Returns page stats, if enabled; returns `null` otherwise.
    */
   get stats() {
-    return (this._stats instanceof StatTimer ? this._stats : null);
+    return this._stats;
   }
 }
 
@@ -1551,16 +1570,9 @@ const PDFWorker = (function PDFWorkerClosure() {
         SystemJS.import('pdfjs/core/worker').then((worker) => {
           fakeWorkerFilesLoadedCapability.resolve(worker.WorkerMessageHandler);
         }).catch(fakeWorkerFilesLoadedCapability.reject);
-      } else if (typeof require === 'function') {
-        try {
-          const worker = require('../core/worker.js');
-          fakeWorkerFilesLoadedCapability.resolve(worker.WorkerMessageHandler);
-        } catch (ex) {
-          fakeWorkerFilesLoadedCapability.reject(ex);
-        }
       } else {
-        fakeWorkerFilesLoadedCapability.reject(new Error(
-          'SystemJS or CommonJS must be used to load fake worker.'));
+        fakeWorkerFilesLoadedCapability.reject(
+          new Error('SystemJS must be used to load fake worker.'));
       }
     } else {
       const loader = fakeWorkerFilesLoader || function() {
@@ -2001,6 +2013,32 @@ class WorkerTransport {
       loadingTask._capability.resolve(new PDFDocumentProxy(pdfInfo, this));
     });
 
+    messageHandler.on('DocException', function(ex) {
+      let reason;
+      switch (ex.name) {
+        case 'PasswordException':
+          reason = new PasswordException(ex.message, ex.code);
+          break;
+        case 'InvalidPDFException':
+          reason = new InvalidPDFException(ex.message);
+          break;
+        case 'MissingPDFException':
+          reason = new MissingPDFException(ex.message);
+          break;
+        case 'UnexpectedResponseException':
+          reason = new UnexpectedResponseException(ex.message, ex.status);
+          break;
+        case 'UnknownErrorException':
+          reason = new UnknownErrorException(ex.message, ex.details);
+          break;
+      }
+      if (typeof PDFJSDev === 'undefined' ||
+          PDFJSDev.test('!PRODUCTION || TESTING')) {
+        assert(reason instanceof Error, 'DocException: expected an Error.');
+      }
+      loadingTask._capability.reject(reason);
+    });
+
     messageHandler.on('PasswordRequest', (exception) => {
       this._passwordCapability = createPromiseCapability();
 
@@ -2020,31 +2058,6 @@ class WorkerTransport {
           new PasswordException(exception.message, exception.code));
       }
       return this._passwordCapability.promise;
-    });
-
-    messageHandler.on('PasswordException', function(exception) {
-      loadingTask._capability.reject(
-        new PasswordException(exception.message, exception.code));
-    });
-
-    messageHandler.on('InvalidPDF', function(exception) {
-      loadingTask._capability.reject(
-        new InvalidPDFException(exception.message));
-    });
-
-    messageHandler.on('MissingPDF', function(exception) {
-      loadingTask._capability.reject(
-        new MissingPDFException(exception.message));
-    });
-
-    messageHandler.on('UnexpectedResponse', function(exception) {
-      loadingTask._capability.reject(
-        new UnexpectedResponseException(exception.message, exception.status));
-    });
-
-    messageHandler.on('UnknownError', function(exception) {
-      loadingTask._capability.reject(
-        new UnknownErrorException(exception.message, exception.details));
     });
 
     messageHandler.on('DataLoaded', (data) => {

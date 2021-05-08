@@ -27,7 +27,6 @@ import { Lexer, Parser } from './parser';
 import {
   MissingDataException, toRomanNumerals, XRefEntryException, XRefParseException
 } from './core_utils';
-import { ChunkedStream } from './chunked_stream';
 import { CipherTransformFactory } from './crypto';
 import { ColorSpace } from './colorspace';
 
@@ -1415,7 +1414,7 @@ var XRef = (function XRefClosure() {
           position += skipUntil(buffer, position, startxrefBytes);
         } else if ((m = objRegExp.exec(token))) {
           const num = m[1] | 0, gen = m[2] | 0;
-          if (typeof this.entries[num] === 'undefined') {
+          if (!this.entries[num] || this.entries[num].gen === gen) {
             this.entries[num] = {
               offset: position - stream.start,
               gen,
@@ -1683,12 +1682,6 @@ var XRef = (function XRefClosure() {
       var obj2 = parser.getObj();
       var obj3 = parser.getObj();
 
-      if (!Number.isInteger(obj1)) {
-        obj1 = parseInt(obj1, 10);
-      }
-      if (!Number.isInteger(obj2)) {
-        obj2 = parseInt(obj2, 10);
-      }
       if (obj1 !== num || obj2 !== gen || !(obj3 instanceof Cmd)) {
         throw new XRefEntryException(`Bad (uncompressed) XRef entry: ${ref}`);
       }
@@ -1714,13 +1707,13 @@ var XRef = (function XRefClosure() {
     },
 
     fetchCompressed(ref, xrefEntry, suppressEncryption = false) {
-      var tableOffset = xrefEntry.offset;
-      var stream = this.fetch(Ref.get(tableOffset, 0));
+      const tableOffset = xrefEntry.offset;
+      const stream = this.fetch(Ref.get(tableOffset, 0));
       if (!isStream(stream)) {
         throw new FormatError('bad ObjStm stream');
       }
-      var first = stream.dict.get('First');
-      var n = stream.dict.get('N');
+      const first = stream.dict.get('First');
+      const n = stream.dict.get('N');
       if (!Number.isInteger(first) || !Number.isInteger(n)) {
         throw new FormatError(
           'invalid first and n parameters for ObjStm stream');
@@ -1730,33 +1723,37 @@ var XRef = (function XRefClosure() {
         xref: this,
         allowStreams: true,
       });
-      var i, entries = [], num, nums = [];
+      const nums = new Array(n);
       // read the object numbers to populate cache
-      for (i = 0; i < n; ++i) {
-        num = parser.getObj();
+      for (let i = 0; i < n; ++i) {
+        const num = parser.getObj();
         if (!Number.isInteger(num)) {
           throw new FormatError(
             `invalid object number in the ObjStm stream: ${num}`);
         }
-        nums.push(num);
-        var offset = parser.getObj();
+        const offset = parser.getObj();
         if (!Number.isInteger(offset)) {
           throw new FormatError(
             `invalid object offset in the ObjStm stream: ${offset}`);
         }
+        nums[i] = num;
       }
+      const entries = new Array(n);
       // read stream objects for cache
-      for (i = 0; i < n; ++i) {
-        entries.push(parser.getObj());
+      for (let i = 0; i < n; ++i) {
+        const obj = parser.getObj();
+        entries[i] = obj;
         // The ObjStm should not contain 'endobj'. If it's present, skip over it
         // to support corrupt PDFs (fixes issue 5241, bug 898610, bug 1037816).
-        if (isCmd(parser.buf1, 'endobj')) {
+        if ((parser.buf1 instanceof Cmd) && parser.buf1.cmd === 'endobj') {
           parser.shift();
         }
-        num = nums[i];
-        var entry = this.entries[num];
+        if (isStream(obj)) {
+          continue;
+        }
+        const num = nums[i], entry = this.entries[num];
         if (entry && entry.offset === tableOffset && entry.gen === i) {
-          this._cacheMap.set(num, entries[i]);
+          this._cacheMap.set(num, obj);
         }
       }
       xrefEntry = entries[xrefEntry.gen];
@@ -2039,13 +2036,13 @@ var FileSpec = (function FileSpecClosure() {
  */
 let ObjectLoader = (function() {
   function mayHaveChildren(value) {
-    return isRef(value) || isDict(value) || Array.isArray(value) ||
-           isStream(value);
+    return (value instanceof Ref) || (value instanceof Dict) ||
+           Array.isArray(value) || isStream(value);
   }
 
   function addChildren(node, nodesToVisit) {
-    if (isDict(node) || isStream(node)) {
-      let dict = isDict(node) ? node : node.dict;
+    if ((node instanceof Dict) || isStream(node)) {
+      let dict = (node instanceof Dict) ? node : node.dict;
       let dictKeys = dict.getKeys();
       for (let i = 0, ii = dictKeys.length; i < ii; i++) {
         let rawValue = dict.getRaw(dictKeys[i]);
@@ -2068,17 +2065,15 @@ let ObjectLoader = (function() {
     this.keys = keys;
     this.xref = xref;
     this.refSet = null;
-    this.capability = null;
   }
 
   ObjectLoader.prototype = {
-    load() {
-      this.capability = createPromiseCapability();
-      // Don't walk the graph if all the data is already loaded.
-      if (!(this.xref.stream instanceof ChunkedStream) ||
-          this.xref.stream.getMissingChunks().length === 0) {
-        this.capability.resolve();
-        return this.capability.promise;
+    async load() {
+      // Don't walk the graph if all the data is already loaded; note that only
+      // `ChunkedStream` instances have a `allChunksLoaded` method.
+      if (!this.xref.stream.allChunksLoaded ||
+          this.xref.stream.allChunksLoaded()) {
+        return undefined;
       }
 
       let { keys, dict, } = this;
@@ -2092,12 +2087,10 @@ let ObjectLoader = (function() {
           nodesToVisit.push(rawValue);
         }
       }
-
-      this._walk(nodesToVisit);
-      return this.capability.promise;
+      return this._walk(nodesToVisit);
     },
 
-    _walk(nodesToVisit) {
+    async _walk(nodesToVisit) {
       let nodesToRevisit = [];
       let pendingRequests = [];
       // DFS walk of the object graph.
@@ -2105,7 +2098,7 @@ let ObjectLoader = (function() {
         let currentNode = nodesToVisit.pop();
 
         // Only references or chunked streams can cause missing data exceptions.
-        if (isRef(currentNode)) {
+        if (currentNode instanceof Ref) {
           // Skip nodes that have already been visited.
           if (this.refSet.has(currentNode)) {
             continue;
@@ -2126,7 +2119,7 @@ let ObjectLoader = (function() {
           let foundMissingData = false;
           for (let i = 0, ii = baseStreams.length; i < ii; i++) {
             let stream = baseStreams[i];
-            if (stream.getMissingChunks && stream.getMissingChunks().length) {
+            if (stream.allChunksLoaded && !stream.allChunksLoaded()) {
               foundMissingData = true;
               pendingRequests.push({ begin: stream.start, end: stream.end, });
             }
@@ -2140,22 +2133,21 @@ let ObjectLoader = (function() {
       }
 
       if (pendingRequests.length) {
-        this.xref.stream.manager.requestRanges(pendingRequests).then(() => {
-          for (let i = 0, ii = nodesToRevisit.length; i < ii; i++) {
-            let node = nodesToRevisit[i];
-            // Remove any reference nodes from the current `RefSet` so they
-            // aren't skipped when we revist them.
-            if (isRef(node)) {
-              this.refSet.remove(node);
-            }
+        await this.xref.stream.manager.requestRanges(pendingRequests);
+
+        for (let i = 0, ii = nodesToRevisit.length; i < ii; i++) {
+          let node = nodesToRevisit[i];
+          // Remove any reference nodes from the current `RefSet` so they
+          // aren't skipped when we revist them.
+          if (node instanceof Ref) {
+            this.refSet.remove(node);
           }
-          this._walk(nodesToRevisit);
-        }, this.capability.reject);
-        return;
+        }
+        return this._walk(nodesToRevisit);
       }
       // Everything is loaded.
       this.refSet = null;
-      this.capability.resolve();
+      return undefined;
     },
   };
 

@@ -213,7 +213,9 @@ class ChunkedStream {
 
   peekByte() {
     const peekedByte = this.getByte();
-    this.pos--;
+    if (peekedByte !== -1) {
+      this.pos--;
+    }
     return peekedByte;
   }
 
@@ -284,6 +286,12 @@ class ChunkedStream {
         }
       }
       return missingChunks;
+    };
+    ChunkedStreamSubstream.prototype.allChunksLoaded = function() {
+      if (this.numChunksLoaded === this.numChunks) {
+        return true;
+      }
+      return this.getMissingChunks().length === 0;
     };
 
     const subStream = new ChunkedStreamSubstream();

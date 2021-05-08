@@ -362,10 +362,7 @@ function find(stream, needle, limit, backwards = false) {
 }
 
 /**
- * The `PDFDocument` class holds all the data of the PDF file. There exists
- * one `PDFDocument` object on the main thread and one object for each worker.
- * If no worker support is enabled, two `PDFDocument` objects are created on
- * the main thread.
+ * The `PDFDocument` class holds all the (worker-thread) data of the PDF file.
  */
 class PDFDocument {
   constructor(pdfManager, arg) {
@@ -453,7 +450,7 @@ class PDFDocument {
       // Find the end of the first object.
       stream.reset();
       if (find(stream, 'endobj', 1024)) {
-        startXRef = stream.pos + 6;
+        startXRef = (stream.pos + 6) - stream.start;
       }
     } else {
       // Find `startxref` by checking backwards from the end of the file.
