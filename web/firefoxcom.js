@@ -19,9 +19,13 @@ import { DefaultExternalServices, PDFViewerApplication } from "./app.js";
 import { BasePreferences } from "./preferences.js";
 import { DEFAULT_SCALE_VALUE } from "./ui_utils.js";
 
-if (typeof PDFJSDev === "undefined" || !PDFJSDev.test("MOZCENTRAL")) {
+if (
+  typeof PDFJSDev === "undefined" ||
+  !PDFJSDev.test("FIREFOX || MOZCENTRAL")
+) {
   throw new Error(
-    'Module "./firefoxcom.js" shall not be used outside MOZCENTRAL builds.'
+    'Module "pdfjs-web/firefoxcom" shall not be used outside ' +
+      "FIREFOX and MOZCENTRAL builds."
   );
 }
 

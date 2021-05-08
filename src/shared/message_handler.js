@@ -51,10 +51,9 @@ function wrapReason(reason) {
         (typeof reason === "object" && reason !== null),
       'wrapReason: Expected "reason" to be a (possibly cloned) Error.'
     );
-  } else {
-    if (typeof reason !== "object" || reason === null) {
-      return reason;
-    }
+  }
+  if (typeof reason !== "object" || reason === null) {
+    return reason;
   }
   switch (reason.name) {
     case "AbortException":

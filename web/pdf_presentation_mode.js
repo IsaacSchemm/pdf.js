@@ -471,7 +471,10 @@ class PDFPresentationMode {
 
     window.addEventListener("fullscreenchange", this.fullscreenChangeBind);
     window.addEventListener("mozfullscreenchange", this.fullscreenChangeBind);
-    if (typeof PDFJSDev === "undefined" || !PDFJSDev.test("MOZCENTRAL")) {
+    if (
+      typeof PDFJSDev === "undefined" ||
+      !PDFJSDev.test("FIREFOX || MOZCENTRAL")
+    ) {
       window.addEventListener(
         "webkitfullscreenchange",
         this.fullscreenChangeBind
@@ -489,7 +492,10 @@ class PDFPresentationMode {
       "mozfullscreenchange",
       this.fullscreenChangeBind
     );
-    if (typeof PDFJSDev === "undefined" || !PDFJSDev.test("MOZCENTRAL")) {
+    if (
+      typeof PDFJSDev === "undefined" ||
+      !PDFJSDev.test("FIREFOX || MOZCENTRAL")
+    ) {
       window.removeEventListener(
         "webkitfullscreenchange",
         this.fullscreenChangeBind

@@ -100,7 +100,7 @@ class PDFAttachmentViewer {
           chrome.runtime.getURL("/content/web/viewer.html") +
           "?file=" +
           encodeURIComponent(blobUrl + "#" + filename);
-      } else if (PDFJSDev.test("MOZCENTRAL")) {
+      } else if (PDFJSDev.test("FIREFOX || MOZCENTRAL")) {
         // Let Firefox's content handler catch the URL and display the PDF.
         viewerUrl = blobUrl + "?" + encodeURIComponent(filename);
       }

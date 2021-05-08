@@ -581,7 +581,7 @@ class PDFPageView {
 
     if (
       typeof PDFJSDev === "undefined" ||
-      PDFJSDev.test("MOZCENTRAL || GENERIC")
+      PDFJSDev.test("MOZCENTRAL || FIREFOX || GENERIC")
     ) {
       canvas.mozOpaque = true;
     }
@@ -658,7 +658,7 @@ class PDFPageView {
   paintOnSvg(wrapper) {
     if (
       typeof PDFJSDev !== "undefined" &&
-      PDFJSDev.test("MOZCENTRAL || CHROME")
+      PDFJSDev.test("FIREFOX || MOZCENTRAL || CHROME")
     ) {
       // Return a mock object, to prevent errors such as e.g.
       // "TypeError: paintTask.promise is undefined".

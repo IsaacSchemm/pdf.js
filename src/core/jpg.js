@@ -1345,10 +1345,7 @@ var JpegImage = (function JpegImageClosure() {
     },
 
     getData({ width, height, forceRGB = false, isSourcePDF = false }) {
-      if (
-        typeof PDFJSDev === "undefined" ||
-        PDFJSDev.test("!PRODUCTION || TESTING")
-      ) {
+      if (typeof PDFJSDev !== "undefined" && PDFJSDev.test("TESTING && !LIB")) {
         assert(
           isSourcePDF === true,
           'JpegImage.getData: Unexpected "isSourcePDF" value for PDF files.'

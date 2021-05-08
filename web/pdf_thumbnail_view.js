@@ -54,7 +54,7 @@ const TempImageFactory = (function TempImageFactoryClosure() {
       // background ourselves. `_getPageDrawContext` uses CSS rules for this.
       if (
         typeof PDFJSDev === "undefined" ||
-        PDFJSDev.test("MOZCENTRAL || GENERIC")
+        PDFJSDev.test("MOZCENTRAL || FIREFOX || GENERIC")
       ) {
         tempCanvas.mozOpaque = true;
       }
@@ -228,7 +228,7 @@ class PDFThumbnailView {
 
     if (
       typeof PDFJSDev === "undefined" ||
-      PDFJSDev.test("MOZCENTRAL || GENERIC")
+      PDFJSDev.test("MOZCENTRAL || FIREFOX || GENERIC")
     ) {
       canvas.mozOpaque = true;
     }

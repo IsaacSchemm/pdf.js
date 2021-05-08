@@ -601,7 +601,7 @@ var renderTextLayer = (function renderTextLayerClosure() {
       let canvas = document.createElement("canvas");
       if (
         typeof PDFJSDev === "undefined" ||
-        PDFJSDev.test("MOZCENTRAL || GENERIC")
+        PDFJSDev.test("FIREFOX || MOZCENTRAL || GENERIC")
       ) {
         canvas.mozOpaque = true;
       }
