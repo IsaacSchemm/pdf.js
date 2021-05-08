@@ -368,7 +368,6 @@ let PDFViewerApplication = {
     if (this.supportsFullscreen) {
       this.pdfPresentationMode = new PDFPresentationMode({
         container,
-        viewer,
         pdfViewer: this.pdfViewer,
         eventBus,
         contextMenuItems: appConfig.fullscreen,
@@ -594,6 +593,9 @@ let PDFViewerApplication = {
     this.pdfOutlineViewer.reset();
     this.pdfAttachmentViewer.reset();
 
+    if (this.pdfHistory) {
+      this.pdfHistory.reset();
+    }
     if (this.findBar) {
       this.findBar.reset();
     }

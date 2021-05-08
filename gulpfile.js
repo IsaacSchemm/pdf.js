@@ -1670,3 +1670,6 @@ gulp.task('externaltest', function (done) {
                 { stdio: 'inherit', });
   done();
 });
+
+gulp.task('npm-test', gulp.series(gulp.parallel('lint', 'externaltest'),
+                                  'unittestcli'));
